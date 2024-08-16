@@ -103,7 +103,7 @@ function usage() {
 
 # extra verbose
 debug=0
-scriptVersion=1.0
+scriptVersion=1.1
 
 # END DUPS - don't copy to build_zimbra.sh
 #==============================================================================================================
@@ -418,6 +418,7 @@ d_echo "Desired tag: $desired_tag"
 # Step 5:
 #
     # Iterate through this list of repositories and grab any tags associated with them
+    print_once=false
     while IFS= read -r repo_url
     do
         ordered_tags=$(fetch_ordered_tags "$repo_url" "$version_pattern")
@@ -425,8 +426,15 @@ d_echo "Desired tag: $desired_tag"
         if [[ -n $ordered_tags ]]; then
             IFS=',' read -r -a tags_array <<< "$ordered_tags"
             for tag in "${tags_array[@]}"; do
-                if [[ ! " ${unique_tags[*]} " =~ " ${tag} " ]]; then
-                    unique_tags+=("$tag")
+                if [[ ! "${tag} " =~ "beta" ]]; then
+                   if [[ ! " ${unique_tags[*]} " =~ " ${tag} " ]]; then
+                      unique_tags+=("$tag")
+                   fi
+                else
+                    if [[ "$print_once" = false ]]; then
+                        d_echo "Omitting beta tag [${tag}]"
+                        print_once=true
+                    fi
                 fi
             done
         fi
