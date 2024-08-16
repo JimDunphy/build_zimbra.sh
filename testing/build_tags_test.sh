@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Written: 6/26/2024: J Dunphy, V Sherwood provided snippets of code
+# Written: 6/26/2024: J Dunphy & V Sherwood provided snippets of code
 # Assist: GTP4o and Claude 3.5 sonnet
 #
 #
@@ -398,7 +398,7 @@ else
   # ask 54+ repositories what the latest tag is for version 8.8.15, 9.0.0, 10.0, 10.1, 10.2, etc, etc
   # %%% Step 3:
   desired_tag="Every tag for $version"
-  echo git clone 'https://github.com/Zimbra/zm-build.git'
+  d_echo git clone 'https://github.com/Zimbra/zm-build.git'
 fi
 d_echo "Desired tag: $desired_tag"
 
