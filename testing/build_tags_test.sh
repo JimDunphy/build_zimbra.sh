@@ -77,7 +77,7 @@ function strip_newer_tags()
 #==================================================================================
 function d_echo() {
     if [ "$debug" -eq 1 ]; then
-        echo "$@"
+        echo "$@" >&2
     fi
 }
 
@@ -86,10 +86,10 @@ function d_echo() {
 function usage() {
    echo "
         $0
-           --version [10.0|9.0|8.0]   #return all tags for version
-           --version 10.0.8           #return tags for specific version
-           --debug                    #extra output
-           -V                         # Version of script
+           --version [10.0|9.0|8.8.15]  #return all tags for version
+           --version 10.0.8             #return tags for specific version
+           --debug                      #extra output
+           -V                           # Version of script
 
       Example usage:
        $0 --version 10.1          # return all tags for version 10.1 (compaitbility with zimbra_tag_helper functions)
@@ -103,7 +103,7 @@ function usage() {
 
 # extra verbose
 debug=0
-scriptVersion=1.1
+scriptVersion=1.2
 
 # END DUPS - don't copy to build_zimbra.sh
 #==============================================================================================================
@@ -226,50 +226,70 @@ function find_latest_tag() {
     local pattern=$2
     local specific_tag=$3
 
-    # Fetch and filter the tags
-    tags=$(git ls-remote --tags "$repo_url" | awk '{print $2}' | grep -E "^refs/tags/$pattern" | grep -v '\^{}' | sed 's|refs/tags/||')
+    # Hard-coded return for 8.8.15
+    if [[ "$specific_tag" == "8.8.15" ]]; then
+        d_echo "*********** returning [8.8.15.p45] ****************"
+        echo "8.8.15.p45"
+        return
+    fi
 
-#    echo "tags is: $tags"
+    # Fetch and filter the tags, ignoring 'beta', 'U20', and similar words
+    tags=$(git ls-remote --tags "$repo_url" | awk '{print $2}' | grep -E "^refs/tags/$pattern" | grep -v '\^{}' | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8')
+
+    d_echo "Running command: git ls-remote --tags \"$repo_url\" | awk '{print \$2}' | grep -E \"^refs/tags/$pattern\" | grep -v '\\^{}' | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8'"
+    #d_echo "tags is: $tags"
 
     latest_tag=$(echo "$tags" | perl -e '
         use strict;
         use warnings;
-        
+
+
+
         sub version_cmp {
             my ($a, $b) = @_;
-            my @a_parts = split /(\d+|\D+)/, $a;
-            my @b_parts = split /(\d+|\D+)/, $b;
+            my @a_parts = split /(\d+|\D+)/, lc($a);  # Split and lowercase for consistent comparison
+            my @b_parts = split /(\d+|\D+)/, lc($b);  # Split and lowercase for consistent comparison
+
             for (my $i = 0; $i < @a_parts && $i < @b_parts; $i++) {
                 if ($a_parts[$i] =~ /^\d+$/ && $b_parts[$i] =~ /^\d+$/) {
                     return $a_parts[$i] <=> $b_parts[$i] if $a_parts[$i] != $b_parts[$i];
+                } elsif ($a_parts[$i] =~ /^\d+$/ && $b_parts[$i] !~ /^\d+$/) {
+                    return 1; # Numeric parts are greater than non-numeric
+                } elsif ($a_parts[$i] !~ /^\d+$/ && $b_parts[$i] =~ /^\d+$/) {
+                    return -1; # Non-numeric parts are less than numeric
                 } else {
-                    return lc($a_parts[$i]) cmp lc($b_parts[$i]) if lc($a_parts[$i]) ne lc($b_parts[$i]);
+                    my $cmp = lc($a_parts[$i]) cmp lc($b_parts[$i]);
+                    return $cmp if $cmp != 0;
                 }
             }
             return @a_parts <=> @b_parts;
         }
 
+        my $debug = shift @ARGV;        # Get the debug value from the arguments
         my $specific_tag = shift @ARGV;
         my @versions = <STDIN>;
         chomp(@versions);
         @versions = sort { version_cmp($a, $b) } @versions;
 
-        #print "sorted versions: ", join(", ", @versions), "\n";  # Debugging
+        # %%% Debugging: Print sorted versions
+        if ($debug == 1) {
+           print STDERR "Sorted versions: ", join(", ", @versions), "\n";
+        }
 
-        my $latest = "No valid tag found";
-        foreach my $version (@versions) {
+        # Select the highest version less than or equal to specific_tag, or the highest overall
+        my $latest = $versions[-1]; # Start with the highest sorted version
+        foreach my $version (reverse @versions) {
             if (version_cmp($version, $specific_tag) <= 0) {
                 $latest = $version;
-            } else {
                 last;
             }
         }
         print $latest, "\n";
-    ' "$specific_tag")
+    ' "$debug" "$specific_tag")
 
+    d_echo "best branch for zm-build [$latest_tag]"
     echo "$latest_tag"
 }
-
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -279,11 +299,22 @@ function clone_repo() {
     local repo_url="git@github.com:Zimbra/zm-build.git"
     local clone_dir="zm-build"
 
+    # make sure zm-build doesn't exist
+    if [ -d "zm-build" ]; then
+        /bin/rm -rf $clone_dir
+        d_echo "$clone_dir directory removed."
+    else
+        d_echo "$clone_dir directory does not exist."
+    fi
+
+
+    d_echo "git clone --quiet --depth 1 --branch $tag $repo_url $clone_dir"
     if ! git clone --quiet --depth 1 --branch "$tag" "$repo_url" "$clone_dir" 2>/dev/null; then
         echo "Error: Failed to clone the repository. Exiting." >&2
         exit 1
     fi
 }
+
 #-----------------------------------------------------------------------------------------------------------
 
 extract_version_pattern() {
@@ -295,19 +326,21 @@ extract_version_pattern() {
     major="${version_array[0]}"
     minor="${version_array[1]}"
     rev="${version_array[2]}"
+    extra="${version_array[3]}"
 
     # Determine the version pattern based on the segments
     if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
-        specific_version_flag=1
-        if [ "${major}" -eq 8 ]; then
-            # Handle version patterns like 8.8.15
+        if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
+            # Handle version pattern 8.8.15 as a general version
+            specific_version_flag=0
             echo "${major}.${minor}.${rev}"
         else
-            # Handle version patterns like 9.0.0 and 10.0.1
-            echo "${major}.${minor}"
+            # Handle other specific versions (including 8.8.15.p40, 9.0.0.p28)
+            specific_version_flag=1
+            echo "${major}.${minor}.${rev}"
         fi
     elif [ -n "${major}" ] && [ -n "${minor}" ]; then
-        # Handle version patterns like 10.1
+        # Handle version patterns like 10.1 or 10.0 (general versions)
         specific_version_flag=0
         echo "${major}.${minor}"
     else
@@ -316,7 +349,6 @@ extract_version_pattern() {
 
     return $specific_version_flag
 }
-
 
 #-----------------------------------------------------------------------------------------------------------
 #
@@ -378,30 +410,18 @@ fi
 version_pattern=$(extract_version_pattern $version)
 showAll=$?
 
-d_echo "Version pattern: $version_pattern"
+d_echo "Version pattern: $version_pattern showAll: $showAll"
 d_echo "Release to build: $version"
 
-# %%% still need to rm zm-build if it exists and clone it
 
 # specific version but chicken and egg problem when we don't have specific version
 #
-# Step2:
-#
-if [ $showAll -eq 1 ]; then
-   # Using the find_latest_tag function
-   desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
+# Step2: find latest branch for the version we provide
+desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
 
-   # %%% Step 3:
-   # clone_repo "$desired_tag"
-else
-  # Clone the latest build repository with the desired tag. We will filter later; otherwise we have to
-  # ask 54+ repositories what the latest tag is for version 8.8.15, 9.0.0, 10.0, 10.1, 10.2, etc, etc
-  # %%% Step 3:
-  desired_tag="Every tag for $version"
-  d_echo git clone 'https://github.com/Zimbra/zm-build.git'
-fi
-d_echo "Desired tag: $desired_tag"
-
+# Step 3: clone that branch
+d_echo 'git clone https://github.com/Zimbra/zm-build.git with branch $desired_tag'
+clone_repo "$desired_tag"
 
 #
 # Step 4:
