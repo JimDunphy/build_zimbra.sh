@@ -86,12 +86,13 @@ function d_echo() {
 function usage() {
    echo "
         $0
-           --version [10.0|9.0|8.8.15]  #return all tags for version
+           --version [10.1|10.0|9.0|8.8.15]  #return all tags for version
            --version 10.0.8             #return tags for specific version
            --debug                      #extra output
            -V                           # Version of script
 
       Example usage:
+       $0 --version 10.1.1        # return all tags for version 10.1 (compaitbility with zimbra_tag_helper functions)
        $0 --version 10.1          # return all tags for version 10.1 (compaitbility with zimbra_tag_helper functions)
        $0 --version 10.0          # return all tags for version 10.0 (compaitbility with zimbra_tag_helper functions)
        $0 --version 9.0           # return all tags for version 9.0 (compaitbility with zimbra_tag_helper functions)
@@ -103,7 +104,7 @@ function usage() {
 
 # extra verbose
 debug=0
-scriptVersion=1.2
+scriptVersion=1.3
 
 # END DUPS - don't copy to build_zimbra.sh
 #==============================================================================================================
@@ -403,7 +404,7 @@ fi
 #   Step6: create a desending list of these tags to build the version
 
 # extract version 10.1,10.0,9.0.0, 8.8.15 from version
-#  Note: allFlag will be 1 if an exact version is required.
+#  Note: $showAll will be 1 if an exact version is required.
 #
 # Step1:
 #
@@ -420,7 +421,7 @@ d_echo "Release to build: $version"
 desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
 
 # Step 3: clone that branch
-d_echo 'git clone https://github.com/Zimbra/zm-build.git with branch $desired_tag'
+d_echo "git clone https://github.com/Zimbra/zm-build.git with branch $desired_tag"
 clone_repo "$desired_tag"
 
 #
@@ -470,10 +471,10 @@ clone_repo "$desired_tag"
 
    # Check if we  want all the tags or a specific branch is 1 or 0
    if [ $showAll -eq 0 ]; then
-       d_echo "A specific version was provided."
+       d_echo "A specific version was not provided."
        echo "$combined_tags"
    else
-       d_echo "A specific version was not provided."
+       d_echo "A specific version was provided."
        release=$version
        tags=$combined_tags
        # set 2 variables above and output only the acceptable tags for the version to build
