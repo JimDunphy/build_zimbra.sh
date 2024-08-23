@@ -49,11 +49,52 @@ build_number_file=".build.number"
 builder_name_file=".build.builder"
 debug=0
 
+# Static Tag files
+tagBuilderScript="testing/build_tags_test.sh"
+tagFileName10_1="tags_for_10_1.txt"
+tagFileName10_0="tags_for_10_0.txt"
+tagFileName9_0="tags_for_9_0.txt"
+tagFileName8_8_15="tags_for_8_8_15.txt"
+
 function d_echo() {
     if [ "$debug" -eq 1 ]; then
         echo "$@"
     fi
 }
+
+function extract_version_pattern() {
+    local version=$1
+    local specific_version_flag=0
+
+    # Split the input version by dots
+    IFS='.' read -ra version_array <<< "$version"
+    major="${version_array[0]}"
+    minor="${version_array[1]}"
+    rev="${version_array[2]}"
+    extra="${version_array[3]}"
+
+    # Determine the version pattern based on the segments
+    if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
+        if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
+            # Handle version pattern 8.8.15 as a general version
+            specific_version_flag=0
+            echo "${major}.${minor}.${rev}"
+        else
+            # Handle other specific versions (including 8.8.15.p40, 9.0.0.p28)
+            specific_version_flag=1
+            echo "${major}.${minor}.${rev}"
+        fi
+    elif [ -n "${major}" ] && [ -n "${minor}" ]; then
+        # Handle version patterns like 10.1 or 10.0 (general versions)
+        specific_version_flag=0
+        echo "${major}.${minor}"
+    else
+        echo "Invalid version pattern"
+    fi
+
+    return $specific_version_flag
+}
+
 
 
 #
@@ -275,11 +316,13 @@ function usage() {
    echo "
         $0
         --init                     #first time to setup envioroment (only once)
-        --version [10|9|8]         #build release 8.8.15 or 9.0.0 or 10.0.0
+        --version [10.1|10.0|9|8]         #build release 8.8.15 or 9.0.0 or 10.0.0
         --version 10.0.8           #build release 10.0.8
-        --debug                    #extra output
+        --debug                    #extra output - use as 1st argument
         --clean                    #remove everything but BUILDS
-        --tags                     #create tags for version 10
+        --tags                     #create tag filess for all versions possible
+        --tags10.0                 #create tags for version 10.0
+        --tags10.1                 #create tags for version 10.1
         --tags8                    #create tags for version 8
         --tags9                    #create tags for version 9
         --upgrade                  #echo what needs to be done to upgrade the script
@@ -296,13 +339,16 @@ function usage() {
        $0 --init               # first time only
        $0 --upgrade            # show how get latest version of this script
        $0 --upgrade | sh       # overwrite current version of script with latest version from github
-       $0 --version 10         # build latest patch version 10 according to tags
+       $0 --version 10.0       # build latest patch version 10.0 according to tags
+       $0 --version 10.1       # build latest patch version 10.1 according to tags
        $0 --version 10.0.6     # build version 10.0.6
+       $0 --version 10.1.0     # build version 10.1.0
 
-       $0 --clean; $0 --version 9  #build version 9 leaving version 10 around
-       $0 --clean; $0 --version 8  #build version 8 leaving version 9, 10 around
-       $0 --clean; $0 --version 10 --dry-run  #see how to build version 10
-       $0 --clean; $0 --version 10  #build version 10
+       $0 --clean; $0 --version 9  #build version 9 
+       $0 --clean; $0 --version 8  #build version 8 
+       $0 --clean; $0 --version 10.0.9 --dry-run  #see how to build version 10.0.9
+       $0 --clean; $0 --version 10.0.8  #build version 10.0.8
+       $0 --clean; $0 --version 10.1.1  #build version 10.1.1
 
       WARNING: ********************************************************************************
         the tags are cached. If a new release comes out, you must explicity do this before building if you are using the same directory:
@@ -323,37 +369,85 @@ function isRoot() {
    fi
 }
 
+# Function to run a command with asynchronous dots display
+run_with_dots() {
+  local command="$1"
+  local output_file="$2"
+
+  # Function to display dots
+  show_dots() {
+    while true; do
+      printf "."
+      sleep 1
+    done
+  }
+
+  # Start the dots in the background
+  show_dots &
+  local dots_pid=$!
+
+  # disown dots process so shell doesn't track it and complain on exit
+  disown  $dots_pid
+
+  # Execute the command and redirect output
+  if [ -d $output_file ] ; then /bin/rm -rf $output_file; fi
+  eval "$command > $output_file" 2> /dev/null 
+  local status=$?
+
+  # Stop the dots
+  kill $dots_pid 2> /dev/null
+
+  # Ensure a newline after dots
+  echo ""
+
+  #Check the exit status
+#  if [ $? -eq 0 ]; then
+#    echo "Command executed successfully."
+#  else
+#    echo "Command failed."
+#    exit
+#  fi
+
+  # Return the status of the command
+  return $status
+}
+
+
+# Build Static files containing tags for releases to build
 function get_tags ()
 {
-  # requires that it be run in the local directory
-  pushd zimbra-tag-helper
-  # %%% not sure but thinking in the future for version 10.1.0
-  if [ -d "zm-build" ] ; then /bin/rm -rf zm-build; fi
-  ./zm-build-filter-tags-10.sh > ../tags_for_10.txt
-  /bin/rm -rf zm-build  
-  popd
-}
+  case "$1" in
+      "10.0")
+           d_echo "Building tags for version 10.0"
+           run_with_dots "$tagBuilderScript --version 10.0" "$tagFileName10_0"
+           ;;
+      "10.1")
+           d_echo "Building tags for version 10.1"
+           run_with_dots "$tagBuilderScript --version 10.1" "$tagFileName10_1"
+           ;;
+      "9.0")
+           d_echo "Building tags for version 9.0"
+           run_with_dots "$tagBuilderScript --version 9.0" "$tagFileName9_0"
+           ;;
+      "8.8.15")
+           d_echo "Building tags for version 8.8.15"
+           run_with_dots "$tagBuilderScript --version 8.8.15" "$tagFileName8_8_15"
+           ;;
+      *)
+           echo "Building Static tag files - should take about 40-45 seconds"
+           d_echo "Building tags for version 10.1"
+           run_with_dots "$tagBuilderScript --version 10.1" "$tagFileName10_1"
+           d_echo "Building tags for version 10.0"
+           run_with_dots "$tagBuilderScript --version 10.0" "$tagFileName10_0"
+           d_echo "Building tags for version 9.0"
+           run_with_dots "$tagBuilderScript --version 9.0" "$tagFileName9_0"
+           d_echo "Building tags for version 8.8.15"
+           run_with_dots "$tagBuilderScript --version 8.8.15" "$tagFileName8_8_15"
 
-function get_tags_9 ()
-{
-  # requires that it be run in the local directory
-  pushd zimbra-tag-helper
-  if [ -d "zm-build" ] ; then /bin/rm -rf zm-build; fi
-  ./zm-build-filter-tags-9.sh > ../tags_for_9.txt
-  /bin/rm -rf zm-build  
-  popd
-}
+           if [ $debug -eq 1 ]; then ls -l tags*;fi
+           ;;
+  esac
 
-function get_tags_8 ()
-{
-  # requires that it be run in the local directory
-  # This is EOL already
-  pushd zimbra-tag-helper
-  ./zm-build-filter-tags-8.sh > ../tags_for_8.txt
-  # odd case of how we do release_no
-  echo ',8.8.15' >> ../tags_for_8.txt
-  /bin/rm -rf zm-build  
-  popd
 }
 
 function strip_newer_tags()
@@ -363,6 +457,8 @@ function strip_newer_tags()
   # Add [,] to both strings to avoid matching extended release numbers. e.g. 10.0.0-GA when searching for 10.0.0, or 9.0.0.p32.1 when searching for 9.0.0.p32
   tagscomma="$tags,"
   releasecomma="$release,"
+
+  d_echo "tagscomma $tagscomma releasecomma $releasecomma"
 
   # earlier_releases will either contain the entire tags string if the requested release wasn't found 
   # or the tail of the tags string after the requested release (which could be nothing if the earliest release was requested)
@@ -422,7 +518,7 @@ echo "Clone Tag $clone_tag"
 #======================================================================================================================
 
 dryrun=0
-args=$(getopt -l "init,show-tags,show-cloned-tags,dry-run,tags,tags8,tags9,help,clean,upgrade,version:,builder:,builderID:,debug" -o "hV" -- "$@")
+args=$(getopt -l "init,show-tags,show-cloned-tags,dry-run,tags,tags8,tags8.8.15,tags9,tags9.0,tags10.0,tags10.1,help,clean,upgrade,version:,builder:,builderID:,debug" -o "hV" -- "$@")
 eval set -- "$args"
 
 # Now process each option in a loop
@@ -493,15 +589,23 @@ while [ $# -ge 1 ]; do
                     shift 2
                     ;;
                 --tags)
-                    get_tags
+                    get_tags "all"
                     exit 0
                     ;;
-                --tags9)
-                    get_tags_9
+                --tags10.0)
+                    get_tags "10.0"
                     exit 0
                     ;;
-                --tags8)
-                    get_tags_8
+                --tags10.1)
+                    get_tags "10.1"
+                    exit 0
+                    ;;
+                --tags9*)
+                    get_tags "9.0"
+                    exit 0
+                    ;;
+                --tags8*)
+                    get_tags "8.8.15"
                     exit 0
                     ;;
                 -h|--help)
@@ -526,25 +630,35 @@ if [[ -z "$version" ]]; then
     exit 1
 fi
 
-# check if a specific release version was requested - Format n.n.n[.p[.n]] 
-IFS='.' read -ra version_array <<< "$version"
-major="${version_array[0]}"
-minor="${version_array[1]}"
-rev="${version_array[2]}"
+# Are we Building a specific version or the latest version?
+version_pattern=$(extract_version_pattern $version)
+specificVersion=$?	# specific version or build latest version
 
-if [ -z "${minor}" ] && [ -z "${rev}" ]; then
-  d_echo "Requested latest Zimbra $major release"
-else
-  release="${version}"
-  version="${major}"
-  d_echo "Requested Zimbra $release release"
-fi
+d_echo "Version pattern: $version_pattern specificVersion: $specificVersion"
+d_echo "Release to build: $version"
+
+
+# check if a specific release version was requested - Format n.n.n[.p[.n]] 
+#IFS='.' read -ra version_array <<< "$version"
+#major="${version_array[0]}"
+#minor="${version_array[1]}"
+#rev="${version_array[2]}"
+#
+#d_echo "major [$major], minor [$minor], revision [$rev]"
+#
+#if [ -z "${minor}" ] && [ -z "${rev}" ]; then
+#  d_echo "Requested latest Zimbra $major release"
+#else
+#  release="${version}"
+#  version="${major}.${minor}"
+#  d_echo "Requested Zimbra release $release and version $version"
+#fi
 
 # tags is a comma seperated list of tags used to make a release to build
 case "$version" in
   8)
-    if [ ! -f tags_for_8.txt ]; then get_tags_8; fi
-    tags="$(cat tags_for_8.txt)"
+    if [ ! -f $tagFileName8_8_15 ]; then get_tags "8.8.15"; fi
+    tags="$(cat $tagFileName8_8_15)"
     if [ -n "$release" ]; then
       strip_newer_tags
     else
@@ -555,8 +669,8 @@ case "$version" in
     BUILD_RELEASE="JOULE"
     ;;
   9)
-    if [ ! -f tags_for_9.txt ]; then get_tags_9; fi
-    tags="$(cat tags_for_9.txt)"
+    if [ ! -f $tagFileName9_0 ]; then get_tags 9.0; fi
+    tags="$(cat $tagFileName9_0)"
     if [ -n "$release" ]; then
       strip_newer_tags
     else
@@ -566,9 +680,21 @@ case "$version" in
     PATCH_LEVEL="GA"
     BUILD_RELEASE="KEPLER"
     ;;
-  10)
-    if [ ! -f tags_for_10.txt ]; then get_tags; fi
-    tags="$(cat tags_for_10.txt)"
+  "10.0")
+    if [ ! -f $tagFileName10_0 ]; then get_tags 10.0; fi
+    tags="$(cat $tagFileName10_0)"
+    if [ -n "$release" ]; then
+      strip_newer_tags
+    else
+      release=$(echo "$tags" | cut -d ',' -f 1)
+    fi
+    LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
+    PATCH_LEVEL="GA"
+    BUILD_RELEASE="DAFFODIL"
+    ;;
+  "10.1")
+    if [ ! -f $tagFileName10_1 ]; then get_tags 10.1; fi
+    tags="$(cat $tagFileName10_1)"
     if [ -n "$release" ]; then
       strip_newer_tags
     else
@@ -579,14 +705,15 @@ case "$version" in
     BUILD_RELEASE="DAFFODIL"
     ;;
   *)
-    echo "Possible values: 8 or 9 or 10"
+    echo "Possible values: 8 or 9 or 10.0 or 10.1"
     exit
     ;;
 esac
 
 # pass these on to the Zimbra build.pl script
-# 10.0.0 | 9.0.0 | 8.8.15 are possible values
+# 10.1.0 | 10.0.0 | 9.0.0 | 8.8.15 are possible values
 TAGS_STRING=$tags
+d_echo "tags: $TAGS_STRING"
 
 # If zm-build folder exists, --clean wasn't run, build will fail, so abort. unless dry-run where we are not building
 if [ -d zm-build ]; then
