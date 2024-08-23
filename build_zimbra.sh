@@ -639,20 +639,21 @@ d_echo "Release to build: $version"
 
 
 # check if a specific release version was requested - Format n.n.n[.p[.n]] 
-#IFS='.' read -ra version_array <<< "$version"
-#major="${version_array[0]}"
-#minor="${version_array[1]}"
-#rev="${version_array[2]}"
-#
-#d_echo "major [$major], minor [$minor], revision [$rev]"
-#
-#if [ -z "${minor}" ] && [ -z "${rev}" ]; then
-#  d_echo "Requested latest Zimbra $major release"
-#else
-#  release="${version}"
-#  version="${major}.${minor}"
-#  d_echo "Requested Zimbra release $release and version $version"
-#fi
+IFS='.' read -ra version_array <<< "$version"
+major="${version_array[0]}"
+minor="${version_array[1]}"
+rev="${version_array[2]}"
+
+
+d_echo "major [$major], minor [$minor], revision [$rev]"
+
+if [ $specificVersion -eq 0 ]; then
+  d_echo "Requested latest Zimbra $major release"
+else
+  release="${version}"
+  version="${major}.${minor}"
+  d_echo "Requested Zimbra release $release and version $version"
+fi
 
 # tags is a comma seperated list of tags used to make a release to build
 case "$version" in
