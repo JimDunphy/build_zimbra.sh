@@ -727,6 +727,7 @@ if [ -d zm-build ]; then
     /bin/rm -rf zm-build
 fi
 
+# Find and clone zm-build with latest branch given version to build.
 clone_until_success "$tags" >/dev/null 2>&1
 
 # pads release version and zm_build branch to two digits and constructs formatted $build_tag and $clone_tag
@@ -750,31 +751,25 @@ BUILD_RELEASE="${BUILD_RELEASE}_T${build_tag}C${clone_tag}$builder"
 #---------------------------------------------------------------------
 read_builder_id
 
+
 # Build the source tree with the specified parameters
-if [ $dryrun -eq 1 ]; then
-
-cat << _END_OF_TEXT
+commands=$(cat << _END_OF_COMMANDS_
 #!/bin/sh
-
 git clone --depth 1 --branch "$tag" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL
+_END_OF_COMMANDS_
+)
 
-
-_END_OF_TEXT
-
-exit
-
+# Execute or dry-run
+if [ $dryrun -eq 1 ]; then
+  echo "$commands"
+  exit 0
 else
-
-  # Copy .build.number into the cloned zm-build. build.pl will increment the number and save it back before the build starts
-  cp .build.number zm-build
-  cd zm-build
-  ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL
-  # Copy this .build.number back to the parent folder so --clean will not wipe it out.
-  cp ${build_number_file} ..
+  eval "$commands"
+  cd .. 
+  cp ${build_number_file} .
 fi
-cd ..
 
 # Log the build
 build="$(cat "$build_number_file")"
