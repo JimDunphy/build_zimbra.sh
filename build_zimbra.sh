@@ -41,7 +41,7 @@
 #         Allow --clean to be specified with --version
 #
 
-scriptVersion=1.18
+scriptVersion=2.0
 copyTag=0.0
 default_builder="FOSS"
 default_number=1011000
