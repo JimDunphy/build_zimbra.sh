@@ -316,15 +316,15 @@ function usage() {
    echo "
         $0
         --init                     #first time to setup envioroment (only once)
-        --version [10.1|10.0|9|8]         #build release 8.8.15 or 9.0.0 or 10.0.0
+        --version [10.1|10.0|9.0|8.8.15]         #build release 8.8.15 or 9.0.0 or 10.0.0
         --version 10.0.8           #build release 10.0.8
         --debug                    #extra output - use as 1st argument
         --clean                    #remove everything but BUILDS
         --tags                     #create tag filess for all versions possible
         --tags10.0                 #create tags for version 10.0
         --tags10.1                 #create tags for version 10.1
-        --tags8                    #create tags for version 8
-        --tags9                    #create tags for version 9
+        --tags8.8.15               #create tags for version 8
+        --tags9.0                  #create tags for version 9
         --upgrade                  #echo what needs to be done to upgrade the script
         --builder foss             # an alphanumeric builder name, updates .build.builder file with value
         --builderID [\d\d\d]       # 3 digit value starting at 101-999, updates .build.number file with value
@@ -344,8 +344,8 @@ function usage() {
        $0 --version 10.0.6     # build version 10.0.6
        $0 --version 10.1.0     # build version 10.1.0
 
-       $0 --clean; $0 --version 9  #build version 9 
-       $0 --clean; $0 --version 8  #build version 8 
+       $0 --clean; $0 --version 9.0     #build version 9 
+       $0 --clean; $0 --version 8.8.15  #build version 8 
        $0 --clean; $0 --version 10.0.9 --dry-run  #see how to build version 10.0.9
        $0 --clean; $0 --version 10.0.8  #build version 10.0.8
        $0 --clean; $0 --version 10.1.1  #build version 10.1.1
@@ -657,7 +657,7 @@ fi
 
 # tags is a comma seperated list of tags used to make a release to build
 case "$version" in
-  8)
+  "8.8")
     if [ ! -f $tagFileName8_8_15 ]; then get_tags "8.8.15"; fi
     tags="$(cat $tagFileName8_8_15)"
     if [ -n "$release" ]; then
@@ -669,7 +669,7 @@ case "$version" in
     PATCH_LEVEL="GA"
     BUILD_RELEASE="JOULE"
     ;;
-  9)
+  "9.0")
     if [ ! -f $tagFileName9_0 ]; then get_tags 9.0; fi
     tags="$(cat $tagFileName9_0)"
     if [ -n "$release" ]; then
