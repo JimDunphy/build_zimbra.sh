@@ -42,7 +42,8 @@
 #
 
 scriptVersion=2.0
-copyTag=0.0
+copyTag="0.0"
+tag="0.0"
 default_builder="FOSS"
 default_number=1011000
 build_number_file=".build.number"
@@ -254,7 +255,7 @@ function clone_repo() {
     local repo_url="git@github.com:Zimbra/zm-build.git"
     local clone_dir="zm-build"
 
-echo "tag $tag repo_url $repo_url clone_dir $clone_dir"
+    d_echo "clone_repo(): tag [$tag] repo_url [$repo_url] clone_dir [$clone_dir]"
 
     # make sure zm-build doesn't exist
     if [ -d "zm-build" ]; then
@@ -265,7 +266,7 @@ echo "tag $tag repo_url $repo_url clone_dir $clone_dir"
     fi
 
 
-    d_echo "git clone --quiet --depth 1 --branch $tag $repo_url $clone_dir"
+    d_echo "clone_repo(): git clone --quiet --depth 1 --branch $tag $repo_url $clone_dir"
     if ! git clone --quiet --depth 1 --branch "$tag" "$repo_url" "$clone_dir" 2>/dev/null; then
         echo "Error: Failed to clone the repository. Exiting." >&2
         exit 1
@@ -662,10 +663,14 @@ run_with_dots() {
 
 function get_inline_tags ()
 {
-
   showAll=$1
   version_pattern=$2
   version=$3
+#  tags=$4
+#  copyTag=$5
+
+
+
 
 #
 # Step1:
@@ -673,14 +678,13 @@ function get_inline_tags ()
 #version_pattern=$(extract_version_pattern $version)
 #showAll=$?
 
-d_echo "Version pattern: $version_pattern showAll: $showAll"
-d_echo "Release to build: $version"
-
-
 # specific version but chicken and egg problem when we don't have specific version
 #
 # Step2: find latest branch for the version we provide
 desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
+copyTag="$desired_tag"
+
+d_echo "showAll [$showAll] version_pattern [$version_pattern] version [$version] tags [$tags] copyTag [$desired_tag]"
 
 # Step 3: clone that branch
 d_echo "git clone https://github.com/Zimbra/zm-build.git with branch $desired_tag"
@@ -727,6 +731,7 @@ clone_repo "$desired_tag"
     sorted_unique_tags=$(custom_sort_versions "${unique_tags[@]}")
     combined_tags=$(IFS=, ; echo "${sorted_unique_tags[*]}")
 
+
 #
 # Step 6:
 #
@@ -734,15 +739,18 @@ clone_repo "$desired_tag"
    # Check if we  want all the tags or a specific branch is 1 or 0
    if [ $showAll -eq 0 ]; then
        d_echo "A specific version was not provided."
-       echo "$combined_tags"
+       #%%%echo "$combined_tags"
+       tags="$combined_tags"
    else
        d_echo "A specific version was provided."
        release=$version
        tags=$combined_tags
        # set 2 variables above and output only the acceptable tags for the version to build
-       strip_newer_tags
+       #strip_newer_tags
+       #tags=$(strip_newer_tags)
    fi
 
+   d_echo "+++ tags [$tags] copyTag [$copyTag]"
 }
 
 
@@ -817,8 +825,8 @@ function strip_newer_tags()
       # There are no earlier_releases. Set tags string to release for building
       tags="$release"
     fi
-    echo "Building $release!"
-    echo "Tags for build: $tags"
+    d_echo "Building $release!"
+    d_echo "Tags for build: $tags"
   fi
 }
 
@@ -966,37 +974,39 @@ fi
 # Are we Building a specific version or the latest version?
 version_pattern=$(extract_version_pattern $version)
 specificVersion=$?	# specific version or build latest version
-sversion=$version
 
+# Grab the tags for this version
+#set -vx
+#tags=$(get_inline_tags $specificVersion $version_pattern $version)
+# tags is a comma seperated list of tags used to make a release to build
+get_inline_tags $specificVersion $version_pattern $version #$tags $copyTag
+copyTag=$desired_tag
+d_echo "tags: [$tags] copyTags: [$copyTag]"
 d_echo "Version pattern: $version_pattern specificVersion: $specificVersion"
 d_echo "Release to build: $version"
-
 
 # check if a specific release version was requested - Format n.n.n[.p[.n]] 
 IFS='.' read -ra version_array <<< "$version"
 major="${version_array[0]}"
 minor="${version_array[1]}"
 rev="${version_array[2]}"
-d_echo "major [$major], minor [$minor], revision [$rev]"
+d_echo "version $version major [$major], minor [$minor], revision [$rev]"
 
 
 if [ $specificVersion -eq 0 ]; then
-  d_echo "Requested latest Zimbra $major release"
+  d_echo "Requested latest Zimbra $major release and version $version"
 else
   release="${version}"
-  version="${major}.${minor}"	#save version for switch
+  version="${major}.${minor}"	
   d_echo "Requested Zimbra release $release and version $version"
 fi
 
-tags=$(get_inline_tags $specificVersion $version_pattern $sversion)
-d_echo "tags: $tags"
 
-# tags is a comma seperated list of tags used to make a release to build
 case "$version" in
-  "8.8")
+  "8.8"|"8.8.15"|"8.8*")
 #    if [ ! -f $tagFileName8_8_15 ]; then get_tags "8.8.15"; fi
 #    tags="$(cat $tagFileName8_8_15)"
-    if [ -n "$release" ]; then
+    if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     else
       release=$(echo "$tags" | cut -d ',' -f 1)
@@ -1008,7 +1018,8 @@ case "$version" in
   "9.0")
 #    if [ ! -f $tagFileName9_0 ]; then get_tags 9.0; fi
 #    tags="$(cat $tagFileName9_0)"
-    if [ -n "$release" ]; then
+#    if [ -n "$release" ]; then
+    if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     else
       release=$(echo "$tags" | cut -d ',' -f 1)
@@ -1020,7 +1031,8 @@ case "$version" in
   "10.0")
 #    if [ ! -f $tagFileName10_0 ]; then get_tags 10.0; fi
 #    tags="$(cat $tagFileName10_0)"
-    if [ -n "$release" ]; then
+#    if [ -n "$release" ]; then
+    if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     else
       release=$(echo "$tags" | cut -d ',' -f 1)
@@ -1032,7 +1044,8 @@ case "$version" in
   "10.1")
 #    if [ ! -f $tagFileName10_1 ]; then get_tags 10.1; fi
 #    tags="$(cat $tagFileName10_1)"
-    if [ -n "$release" ]; then
+#    if [ -n "$release" ]; then
+    if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     else
       release=$(echo "$tags" | cut -d ',' -f 1)
@@ -1046,6 +1059,7 @@ case "$version" in
     exit
     ;;
 esac
+
 
 # pass these on to the Zimbra build.pl script
 # 10.1.0 | 10.0.0 | 9.0.0 | 8.8.15 are possible values
@@ -1062,6 +1076,7 @@ if [ -d zm-build ]; then
     echo "Removing zm-build directory..."
     /bin/rm -rf zm-build
 fi
+
 
 # Find and clone zm-build with latest branch given version to build.
 clone_until_success "$tags" >/dev/null 2>&1
