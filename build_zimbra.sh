@@ -43,7 +43,7 @@
 
 scriptVersion=2.0
 copyTag="0.0"
-tag="0.0"
+tags="0.0"
 default_builder="FOSS"
 default_number=1011000
 build_number_file=".build.number"
@@ -618,10 +618,9 @@ function isRoot() {
    fi
 }
 
-# Function to run a command with asynchronous dots display
+# Function to run a command or function with asynchronous dots display
 run_with_dots() {
   local command="$1"
-  local output_file="$2"
 
   # Function to display dots
   show_dots() {
@@ -635,31 +634,57 @@ run_with_dots() {
   show_dots &
   local dots_pid=$!
 
-  # disown dots process so shell doesn't track it and complain on exit
-  disown  $dots_pid
+  disown $dots_pid
 
-  # Execute the command and redirect output
-  if [ -d $output_file ] ; then /bin/rm -rf $output_file; fi
-  eval "$command > $output_file" 2> /dev/null 
+  # Set up a trap to ensure the dots stop if the script exits early
+  #trap "kill $dots_pid 2>/dev/null" EXIT
+  #trap "kill $dots_pid 2>/dev/null || true" EXIT
+  
+
+  # Execute the command directly in the current shell
+  $command
   local status=$?
 
-  # Stop the dots
-  kill $dots_pid 2> /dev/null
+  # Stop the dots and remove the trap
+  #kill $dots_pid 2>/dev/null
+  kill $dots_pid 2>/dev/null 
+  #trap - EXIT
 
   # Ensure a newline after dots
   echo ""
 
-  #Check the exit status
-#  if [ $? -eq 0 ]; then
-#    echo "Command executed successfully."
-#  else
-#    echo "Command failed."
-#    exit
-#  fi
-
-  # Return the status of the command
+  # Return the status of the command or function
   return $status
 }
+
+# Example usage within your tag_generate function
+function tag_generate () {
+  version=$1
+  tagFileName=$2
+
+  # global variables
+  #    $version
+  #    $tags
+
+  # Are we Building a specific version or the latest version?
+  version_pattern=$(extract_version_pattern $version)
+  specificVersion=$?  # specific version or build latest version
+
+  # Command to grab the tags for this version
+  get_inline_tags_cmd="get_inline_tags $specificVersion $version_pattern $version"
+
+  # Run the command with dots
+  run_with_dots "$get_inline_tags_cmd"
+
+  # Write the tags variable to the file, overwriting it even if noclobber is set
+  echo "$tags" >| "$tagFileName"
+
+  tags=""
+  copyTag="0.0"
+
+}
+
+
 
 function get_inline_tags ()
 {
@@ -705,6 +730,8 @@ clone_repo "$desired_tag"
 # Step 5:
 #
     # Iterate through this list of repositories and grab any tags associated with them
+
+    unique_tags=()
     print_once=false
     while IFS= read -r repo_url
     do
@@ -730,7 +757,6 @@ clone_repo "$desired_tag"
     # create the sorted list
     sorted_unique_tags=$(custom_sort_versions "${unique_tags[@]}")
     combined_tags=$(IFS=, ; echo "${sorted_unique_tags[*]}")
-
 
 #
 # Step 6:
@@ -758,32 +784,35 @@ clone_repo "$desired_tag"
 function get_tags ()
 {
   case "$1" in
-      "10.0")
-           d_echo "Building tags for version 10.0"
-           run_with_dots "$tagBuilderScript --version 10.0" "$tagFileName10_0"
-           ;;
       "10.1")
-           d_echo "Building tags for version 10.1"
-           run_with_dots "$tagBuilderScript --version 10.1" "$tagFileName10_1"
+           echo "Building tags for version 10.1"
+           tag_generate "10.1" "$tagFileName10_1"
+           ;;
+      "10.0")
+           echo "Building tags for version 10.0"
+           tag_generate "10.0" "$tagFileName10_0"
            ;;
       "9.0")
-           d_echo "Building tags for version 9.0"
-           run_with_dots "$tagBuilderScript --version 9.0" "$tagFileName9_0"
+           echo "Building tags for version 9.0"
+           tag_generate "9.0" "$tagFileName9_0"
            ;;
       "8.8.15")
-           d_echo "Building tags for version 8.8.15"
-           run_with_dots "$tagBuilderScript --version 8.8.15" "$tagFileName8_8_15"
+           echo "Building tags for version 8.8.15"
+           tag_generate "8.8.15" "$tagFileName8_8_15"
            ;;
       *)
            echo "Building Static tag files - should take about 40-45 seconds"
-           d_echo "Building tags for version 10.1"
-           run_with_dots "$tagBuilderScript --version 10.1" "$tagFileName10_1"
-           d_echo "Building tags for version 10.0"
-           run_with_dots "$tagBuilderScript --version 10.0" "$tagFileName10_0"
-           d_echo "Building tags for version 9.0"
-           run_with_dots "$tagBuilderScript --version 9.0" "$tagFileName9_0"
-           d_echo "Building tags for version 8.8.15"
-           run_with_dots "$tagBuilderScript --version 8.8.15" "$tagFileName8_8_15"
+           echo "Building tags for version 10.1"
+           tag_generate "10.1" "$tagFileName10_1" 
+
+           echo "Building tags for version 10.0"
+           tag_generate "10.0" "$tagFileName10_0"
+
+           echo "Building tags for version 9.0"
+           tag_generate "9.0" "$tagFileName9_0"
+
+           echo "Building tags for version 8.8.15"
+           tag_generate "8.8.15" "$tagFileName8_8_15"
 
            if [ $debug -eq 1 ]; then ls -l tags*;fi
            ;;
