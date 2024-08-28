@@ -733,6 +733,18 @@ clone_repo "$desired_tag"
 
     unique_tags=()
     print_once=false
+
+# %%% logic bug... version_pattern is set to 10.0.9 when it needs to be 10.0
+if [[ $version == 8.8.15* ]]; then
+   version_pattern="8.8.15"
+else
+   IFS='.' read -ra version_array <<< "$version"
+   major="${version_array[0]}"
+   minor="${version_array[1]}"
+   version_pattern="${major}.${minor}"
+fi
+
+   d_echo "Version [$version] Release [$release] version_pattern [$version_pattern]"
     while IFS= read -r repo_url
     do
         ordered_tags=$(fetch_ordered_tags "$repo_url" "$version_pattern")
@@ -753,6 +765,8 @@ clone_repo "$desired_tag"
             done
         fi
     done <<< "$repo_list"
+
+    d_echo "tag list: [${unique_tags[@]}]"
 
     # create the sorted list
     sorted_unique_tags=$(custom_sort_versions "${unique_tags[@]}")
