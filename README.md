@@ -1,16 +1,15 @@
 # Script to Compile Zimbra FOSS
 
-It will install the development environment on any of the supported platforms and allow one to build a zimbra release for Version 8.8.15, 9, and 10. Script can be found here: [build_zimbra.sh](https://raw.githubusercontent.com/JimDunphy/ZimbraScripts/master/src/build_zimbra.sh). To use this script, you must have previously set up your GitHub account (free) and imported your SSH keys to be able to git clone the repositories and have zm-build/build.pl work. If unsure, see this [link](https://github.com/ianw1974/zimbra-build-scripts) as Ian's script will be installing the dependencies. The script builds upon these two repositories from GitHub:
+It will install the development environment on any of the supported platforms and allow one to build a zimbra release for Version 8.8.15, 9, and 10. Script can be found here: [build_zimbra.sh](https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh). To use this script, you must have previously set up your GitHub account (free) and imported your SSH keys to be able to git clone the repositories and have zm-build/build.pl work. If unsure, see this [link](https://github.com/ianw1974/zimbra-build-scripts) as Ian's script will be installing the dependencies. The script uses this repository.
 
 * [https://github.com/ianw1974/zimbra-build-scripts](https://github.com/ianw1974/zimbra-build-scripts)
-* [https://github.com/maldua/zimbra-tag-helper](https://github.com/maldua/zimbra-tag-helper)
 
-Building zimbra amounts to creating a tarball which this script does. Installing this tarball amounts to understanding two parts:
+This script can build any version and release in 10.1,10.0,9.0, and 8.8.15 FOSS zimbra and will create a tarball when completed. 
 
 * You will extract the tarball and issue `install.sh` - See [zimbra wiki documentation](https://wiki.zimbra.com/wiki/Zimbra_Releases/8.7.0/Single_Server_Installation)
 * During the above installation, third party components are supplied by pre-built zimbra repositories (nginx, ldap, etc).
 
-**Note**: If you use this script and an official patch is released, you will need to repeat the above process. Be extra careful to grab the latest tags. One way is to create a new directory and start clean; otherwise use the tag option for your version. Hint: always do a `--clean` and view the tags as a sanity check that will be used before building.
+**Note**: If you use this script and an official patch is released, you will need to repeat the above process. 
 
 ## Step 1
 
@@ -22,16 +21,10 @@ Install the development environment for any supported Zimbra platforms. This wil
 
 ## Step 2
 
-Determine what tags will be present in your FOSS build. Let's build a 10.0 FOSS release.
+Build the latest version using the --version option 
 
 ```sh
-./build_zimbra.sh --tags
-```
-
-Build the latest version from the tags present from the previous command:
-
-```sh
-./build_zimbra.sh --version 10
+./build_zimbra.sh --version 10.0
 ```
 
 or Build a specific release.
@@ -42,19 +35,22 @@ or Build a specific release.
 
 ## Tags
 
-When Zimbra checks in their changes, they will tag the patch. Issue any of the following commands to see the tags for your release you want to build:
+When Zimbra creates releases, they will tag it. Issue any of the following commands to see the tags for your release but this is no longer necessary as
+the script will generate the correct tags dynamically.
 
 ```sh
-./build_zimbra.sh --tags
-./build_zimbra.sh --tags9
-./build_zimbra.sh --tags8
-ls tag*
-# tags_for_10.txt  tags_for_8.txt  tags_for_9.txt
+./build_zimbra.sh --tags10.1
+./build_zimbra.sh --tags10.0
+./build_zimbra.sh --tags9.0
+./build_zimbra.sh --tags8.8.15
+./build_zimbra.sh --tags    # Create all files
+ls tags*
+tags_for_10_0.txt  tags_for_10_1.txt  tags_for_8_8_15.txt  tags_for_9_0.txt
 cat tags_for_10.txt 
 # 10.0.8,10.0.7,10.0.6,10.0.5,10.0.4,10.0.2,10.0.1,10.0.0-GA,10.0.0
 ```
 
-## Building New Patch Releases
+## Building New Patch Releases 
 
 Your current directory contains a previous build for Zimbra 10.0.7. You can verify this by running any of the commands below:
 
@@ -90,57 +86,63 @@ There are 2 parts to this complex command line:
 * Determine which branch to clone for zm-build.
 * The tags to use and supply with the `--git-default-tag` option.
 
-This script iterates through the GitHub repository and builds a tags file for the version you want to build. It will then take the version you are attempting to build and find the highest branch for zm-build to checkout. Using the `--dry-run` option, you can see what it has determined and compare.
+This script iterates through the GitHub repository and builds the tags for the zimbra version you want to build. It then takes the version you are attempting to build and find the highest branch for zm-build to checkout. Using the `--dry-run` option, you can see what it has determined and compare.
 
 ## Useful Commands
 
 ```sh
+```
 ./build_zimbra.sh --help
 
-    ./build_zimbra.sh
-    --init                     # first time to set up environment (only once)
-    --version [10|9|8]         # build release 8.8.15 or 9.0.0 or 10.0.0
-    --version 10.0.8           # build release 10.0.8
-    --debug                    # extra output
-    --clean                    # remove everything but BUILDS
-    --tags                     # create tags for version 10
-    --tags8                    # create tags for version 8
-    --tags9                    # create tags for version 9
-    --upgrade                  # echo what needs to be done to upgrade the script
-    --builder foss             # an alphanumeric builder name, updates .build.builder file with value
-    --builderID [\d\d\d]       # 3 digit value starting at 101-999, updates .build.number file with value
-    -V                         # version of this program
-    --dry-run                  # show what we would do
-    --show-tags                # show latest tag for each repository
-    --show-tags | grep 10.0.8  # show latest tag for each repository with 10.0.8
-    --show-cloned-tags         # show tag of each cloned repository used for build
-    --help
+        ./build_zimbra.sh
+        --init                     #first time to setup envioroment (only once)
+        --version [10.1|10.0|9.0|8.8.15]         #build release 8.8.15 or 9.0.0 or 10.0.0
+        --version 10.0.8           #build release 10.0.8
+        --debug                    #extra output - use as 1st argument
+        --clean                    #remove everything but BUILDS
+        --tags                     #create tag filess for all versions possible
+        --tags10.0                 #create tags for version 10.0
+        --tags10.1                 #create tags for version 10.1
+        --tags8.8.15               #create tags for version 8
+        --tags9.0                  #create tags for version 9
+        --upgrade                  #echo what needs to be done to upgrade the script
+        --builder foss             # an alphanumeric builder name, updates .build.builder file with value
+        --builderID [\d\d\d]       # 3 digit value starting at 101-999, updates .build.number file with value
+        -V                         #version of this program
+        --dry-run                  #show what we would do
+        --show-tags                #show latest tag for each repositories
+        --show-tags | grep 10.0.8  #show latest tag for each repositories with 10.0.8
+        --show-cloned-tags         #show tag of each cloned repository used for build
+        --help
 
-   Example usage:
-   ./build_zimbra.sh --init               # first time only
-   ./build_zimbra.sh --upgrade            # show how to get the latest version of this script
-   ./build_zimbra.sh --upgrade | sh       # overwrite current version of script with latest version from GitHub
-   ./build_zimbra.sh --version 10         # build latest patch version 10 according to tags
-   ./build_zimbra.sh --version 10.0.6     # build version 10.0.6
+       Example usage:
+       ./build_zimbra.sh --init               # first time only
+       ./build_zimbra.sh --upgrade            # show how get latest version of this script
+       ./build_zimbra.sh --upgrade | sh       # overwrite current version of script with latest version from github
+       ./build_zimbra.sh --version 10.0       # build latest patch version 10.0 according to tags
+       ./build_zimbra.sh --version 10.1       # build latest patch version 10.1 according to tags
+       ./build_zimbra.sh --version 10.0.6     # build version 10.0.6
+       ./build_zimbra.sh --version 10.1.0     # build version 10.1.0
 
-   ./build_zimbra.sh --clean; ./build_zimbra.sh --version 9  # build version 9 leaving version 10 around
-   ./build_zimbra.sh --clean; ./build_zimbra.sh --version 8  # build version 8 leaving version 9, 10 around
-   ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10 --dry-run  # see how to build version 10
-   ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10  # build version 10
+       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 9.0     #build version 9 
+       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 8.8.15  #build version 8 
+       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10.0.9 --dry-run  #see how to build version 10.0.9
+       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10.0.8  #build version 10.0.8
+       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10.1.1  #build version 10.1.1
 
-  WARNING: ********************************************************************************
-    the tags are cached. If a new release comes out, you must explicitly do this before building if you are using the same directory:
+      WARNING: ********************************************************************************
+        the tags are cached. If a new release comes out, you must explicity do this before building if you are using the same directory:
 
-   ./build_zimbra.sh --clean; ./build_zimbra.sh --tags
+       ./build_zimbra.sh --clean; ./build_zimbra.sh --tags
 
-  This is because the tags are cached in a file and need to be recalculated again.
-  *****************************************************************************************
-```
+      This is because the tags are cached in a file and need to recalculated again.
+      *****************************************************************************************
+
 
 See how it will build the latest version of 10.0: (Note: you could use `--version 10.0.7` if you know the patch you want)
 
 ```sh
-./build_zimbra.sh --version 10 --dry-run
+./build_zimbra.sh --version 10.0 --dry-run
 #!/bin/sh
 
 git clone --depth 1 --branch "10.0.6" "git@github.com:Zimbra/zm-build.git"
@@ -151,21 +153,7 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 Now build version 10.0 patch 7 shown above:
 
 ```sh
-./build_zimbra.sh --version 10
-Attempting to clone branch 10.0.7...
-Cloning into 'zm-build'...
-warning: Could not find remote branch 10.0.7 to clone.
-fatal: Remote branch 10.0.7 not found in upstream origin
-Failed to clone branch 10.0.7. Trying the next tag...
-Attempting to clone branch 10.0.6...
-Cloning into 'zm-build'...
-remote: Enumerating objects: 186, done.
-remote: Counting objects: 100% (186/186), done.
-remote: Compressing objects: 100% (154/154), done.
-remote: Total 186 (delta 43), reused 93 (delta 18), pack-reused 0
-Receiving objects: 100% (186/186), 213.70 KiB | 1.22 MiB/s, done.
-Resolving deltas: 100% (43/43), done.
-Note: switching to '63dacdd96e958c4c3a0493cbbae7ae113d3bb858'.
+./build_zimbra.sh --version 10.0
 ...
 ...
 ...sudo bash -s <<"EOM_SCRIPT"
@@ -196,7 +184,7 @@ BUILDS/RHEL8_64-JOULE-8815-20240319111605-FOSS-1000/zcs-8.8.15_GA_P46_1000.RHEL8
 See what it takes to build Zimbra version 8:
 
 ```sh
-./build_zimbra.sh --version 8 --dry-run
+./build_zimbra.sh --version 8.8.15 --dry-run
 #!/bin/sh
 
 git clone --depth 1 --branch "8.8.15.p45" "git@github.com:Zimbra/zm-build.git"
@@ -207,7 +195,7 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 Now Version 9.
 
 ```sh
-./build_zimbra.sh --version 9 --dry-run
+./build_zimbra.sh --version 9.0 --dry-run
 #!/bin/sh
 
 git clone --depth 1 --branch "9.0.0.p38" "git@github.com:Zimbra/zm-build.git"

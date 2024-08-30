@@ -41,7 +41,7 @@
 #         Allow --clean to be specified with --version
 #
 
-scriptVersion=2.0
+scriptVersion=2.1
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -271,6 +271,9 @@ function clone_repo() {
         echo "Error: Failed to clone the repository. Exiting." >&2
         exit 1
     fi
+    
+    # for test cases
+    echo "Removing zm-build directory..."
 }
 
 
@@ -547,11 +550,6 @@ function init ()
 {
    # Get supporting scripts that we will use
    clone_if_not_exists https://github.com/ianw1974/zimbra-build-scripts
-   clone_if_not_exists https://github.com/maldua/zimbra-tag-helper
-
-   # We need another filter script for verison 8.8.15. 
-   cp zimbra-tag-helper/zm-build-filter-tags-9.sh zimbra-tag-helper/zm-build-filter-tags-8.sh
-   sed -i 's/MAIN_BRANCH="9.0"/MAIN_BRANCH="8.8.15"/' zimbra-tag-helper/zm-build-filter-tags-8.sh
 
    echo "Will need to run next command as root to install system dependicies and tools"
    sudo zimbra-build-scripts/zimbra-build-helper.sh --install-deps
@@ -706,7 +704,7 @@ function get_inline_tags ()
 desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
 copyTag="$desired_tag"
 
-d_echo "showAll [$showAll] version_pattern [$version_pattern] version [$version] tags [$tags] copyTag [$desired_tag]"
+d_echo "tag [$tag] showAll [$showAll] version_pattern [$version_pattern] version [$version] tags [$tags] copyTag [$desired_tag]"
 
 # Step 3: clone that branch
 d_echo "git clone https://github.com/Zimbra/zm-build.git with branch $desired_tag"
@@ -774,22 +772,16 @@ clone_repo "$desired_tag"
    # Check if we  want all the tags or a specific branch is 1 or 0
    if [ $showAll -eq 0 ]; then
        d_echo "A specific version was not provided."
-       #%%%echo "$combined_tags"
-
-# %%% BUG        release is not defined yet
-
+       #d_echo "$combined_tags"
        tags="$combined_tags"
        release=$(echo "$tags" | cut -d ',' -f 1)
    else
        d_echo "A specific version was provided."
        release=$version
        tags=$combined_tags
-       # set 2 variables above and output only the acceptable tags for the version to build
-       #strip_newer_tags
-       #tags=$(strip_newer_tags)
    fi
 
-   d_echo "+++ release [$release] tags [$tags] copyTag [$copyTag]"
+   d_echo "get_inline_tags(): release [$release] tags [$tags] copyTag [$copyTag]"
 }
 
 
@@ -841,7 +833,7 @@ function strip_newer_tags()
   tagscomma="$tags,"
   releasecomma="$release,"
 
-  d_echo "tagscomma $tagscomma releasecomma $releasecomma"
+  #d_echo "tagscomma $tagscomma releasecomma $releasecomma"
 
   # earlier_releases will either contain the entire tags string if the requested release wasn't found 
   # or the tail of the tags string after the requested release (which could be nothing if the earliest release was requested)
@@ -1018,14 +1010,14 @@ fi
 #     $version_pattern $major $minor $rev $ext $specificVersion
 # populate version patterns required for the build and tags required
 extract_version_pattern $version 
-d_echo "extract_version_pattern version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
+d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
 
 
 # Grab the tags for this version
 # Global
 get_inline_tags $specificVersion $version_pattern $version #$tags $copyTag
 copyTag=$desired_tag
-d_echo "tags: [$tags] copyTags: [$copyTag]" 
+#d_echo "tags: [$tags] copyTags: [$copyTag]" 
 
 # %%% thinking about caching during debug mode for faster code development
 #
@@ -1086,23 +1078,15 @@ esac
 TAGS_STRING=$tags
 d_echo "tags: $TAGS_STRING"
 
-# If zm-build folder exists, --clean wasn't run, build will fail, so abort. unless dry-run where we are not building
-if [ -d zm-build ]; then
+# If zm-mailbox folder exists, --clean wasn't run, build will fail, so abort. unless dry-run where we are not building
+if [ -d zm-mailbox ]; then
     if [ "$dryrun" -eq 0 ]; then
         echo "You must run the script with --clean option before each new build (even if rebuilding the same version)"
         echo "The zm-build process will fail if this is not done!"
         exit 1
     fi
-    echo "Removing zm-build directory..."
-    /bin/rm -rf zm-build
 fi
 
-
-# Find and clone zm-build with latest branch given version to build.
-# %%% Bug here: tag should be same as copyTag
-d_echo "tag [$tag] copyTag [$copyTag]"
-clone_until_success "$tags" >/dev/null 2>&1
-d_echo "tag [$tag] copyTag [$copyTag]"
 
 # pads release version and zm_build branch to two digits and constructs formatted $build_tag and $clone_tag
 zero_pad_tag_and_clone_versions
@@ -1129,7 +1113,7 @@ read_builder_id
 # Build the source tree with the specified parameters
 commands=$(cat << _END_OF_COMMANDS_
 #!/bin/sh
-git clone --depth 1 --branch "$tag" "git@github.com:Zimbra/zm-build.git"
+git clone --depth 1 --branch "$copyTag" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL
 _END_OF_COMMANDS_
