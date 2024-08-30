@@ -273,11 +273,13 @@ function clone_repo() {
     fi
 }
 
-#-----------------------------------------------------------------------------------------------------------
 
-extract_version_pattern() {
+#---------------------------------------------------------------------------------------------------
+function extract_version_pattern() {
     local version=$1
-    local specific_version_flag=0
+
+    # globals
+    #   major,minor,rev,extra,specificVersion
 
     # Split the input version by dots
     IFS='.' read -ra version_array <<< "$version"
@@ -290,28 +292,23 @@ extract_version_pattern() {
     if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
         if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
             # Handle version pattern 8.8.15 as a general version
-            specific_version_flag=0
-            echo "${major}.${minor}.${rev}"
+            specificVersion=0
+            version_pattern="${major}.${minor}.${rev}"
         else
             # Handle other specific versions (including 8.8.15.p40, 9.0.0.p28)
-            specific_version_flag=1
-            echo "${major}.${minor}.${rev}"
+            specificVersion=1
+            version_pattern="${major}.${minor}.${rev}"
         fi
     elif [ -n "${major}" ] && [ -n "${minor}" ]; then
         # Handle version patterns like 10.1 or 10.0 (general versions)
-        specific_version_flag=0
-        echo "${major}.${minor}"
+        specificVersion=0
+        version_pattern="${major}.${minor}"
     else
         echo "Invalid version pattern"
     fi
-
-    return $specific_version_flag
 }
 
-
-#---------------------------------------------------------------------------------------------------
-
-function extract_version_pattern() {
+function extract_version_pattern_1() {
     local version=$1
     local specific_version_flag=0
 
@@ -734,17 +731,15 @@ clone_repo "$desired_tag"
     unique_tags=()
     print_once=false
 
-# %%% logic bug... version_pattern is set to 10.0.9 when it needs to be 10.0
-if [[ $version == 8.8.15* ]]; then
-   version_pattern="8.8.15"
-else
-   IFS='.' read -ra version_array <<< "$version"
-   major="${version_array[0]}"
-   minor="${version_array[1]}"
-   version_pattern="${major}.${minor}"
-fi
+    # version_pattern is set to 10.0.9 when it needs to be 10.0
+    # We have a list of tags that contain version 8,9,10,etc ... version_pattern is a grep on that list
+    if [[ $version == 8.8.15* ]]; then
+       version_pattern="8.8.15"
+    else
+       version_pattern="${major}.${minor}"
+    fi
 
-   d_echo "Version [$version] Release [$release] version_pattern [$version_pattern]"
+    d_echo "Version [$version] Release [$release] version_pattern [$version_pattern]"
     while IFS= read -r repo_url
     do
         ordered_tags=$(fetch_ordered_tags "$repo_url" "$version_pattern")
@@ -780,7 +775,11 @@ fi
    if [ $showAll -eq 0 ]; then
        d_echo "A specific version was not provided."
        #%%%echo "$combined_tags"
+
+# %%% BUG        release is not defined yet
+
        tags="$combined_tags"
+       release=$(echo "$tags" | cut -d ',' -f 1)
    else
        d_echo "A specific version was provided."
        release=$version
@@ -790,7 +789,7 @@ fi
        #tags=$(strip_newer_tags)
    fi
 
-   d_echo "+++ tags [$tags] copyTag [$copyTag]"
+   d_echo "+++ release [$release] tags [$tags] copyTag [$copyTag]"
 }
 
 
@@ -1014,85 +1013,63 @@ if [[ -z "$version" ]]; then
     exit 1
 fi
 
-# Are we Building a specific version or the latest version?
-version_pattern=$(extract_version_pattern $version)
-specificVersion=$?	# specific version or build latest version
+#
+# Globals
+#     $version_pattern $major $minor $rev $ext $specificVersion
+# populate version patterns required for the build and tags required
+extract_version_pattern $version 
+d_echo "extract_version_pattern version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
+
 
 # Grab the tags for this version
-#set -vx
-#tags=$(get_inline_tags $specificVersion $version_pattern $version)
-# tags is a comma seperated list of tags used to make a release to build
+# Global
 get_inline_tags $specificVersion $version_pattern $version #$tags $copyTag
 copyTag=$desired_tag
-d_echo "tags: [$tags] copyTags: [$copyTag]"
-d_echo "Version pattern: $version_pattern specificVersion: $specificVersion"
-d_echo "Release to build: $version"
+d_echo "tags: [$tags] copyTags: [$copyTag]" 
 
-# check if a specific release version was requested - Format n.n.n[.p[.n]] 
-IFS='.' read -ra version_array <<< "$version"
-major="${version_array[0]}"
-minor="${version_array[1]}"
-rev="${version_array[2]}"
-d_echo "version $version major [$major], minor [$minor], revision [$rev]"
-
+# %%% thinking about caching during debug mode for faster code development
+#
+#    if [ -f "$tagFileName10_1" ] && [ "$debug" -eq 1 ]; then
+#       d_echo "using the tags from the cached file"
+#       tags="$(cat $tagFileName10_1)"
 
 if [ $specificVersion -eq 0 ]; then
   d_echo "Requested latest Zimbra $major release and version $version"
 else
-  release="${version}"
   version="${major}.${minor}"	
   d_echo "Requested Zimbra release $release and version $version"
 fi
 
-
 case "$version" in
   "8.8"|"8.8.15"|"8.8*")
-#    if [ ! -f $tagFileName8_8_15 ]; then get_tags "8.8.15"; fi
-#    tags="$(cat $tagFileName8_8_15)"
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
-    else
-      release=$(echo "$tags" | cut -d ',' -f 1)
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | awk -F',' '{print $NF}')
     PATCH_LEVEL="GA"
     BUILD_RELEASE="JOULE"
     ;;
   "9.0")
-#    if [ ! -f $tagFileName9_0 ]; then get_tags 9.0; fi
-#    tags="$(cat $tagFileName9_0)"
-#    if [ -n "$release" ]; then
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
-    else
-      release=$(echo "$tags" | cut -d ',' -f 1)
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | awk -F',' '{print $NF}')
     PATCH_LEVEL="GA"
     BUILD_RELEASE="KEPLER"
     ;;
   "10.0")
-#    if [ ! -f $tagFileName10_0 ]; then get_tags 10.0; fi
-#    tags="$(cat $tagFileName10_0)"
-#    if [ -n "$release" ]; then
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
-    else
-      release=$(echo "$tags" | cut -d ',' -f 1)
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
     ;;
   "10.1")
-#    if [ ! -f $tagFileName10_1 ]; then get_tags 10.1; fi
-#    tags="$(cat $tagFileName10_1)"
-#    if [ -n "$release" ]; then
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
-    else
-      release=$(echo "$tags" | cut -d ',' -f 1)
     fi
+
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
@@ -1122,7 +1099,10 @@ fi
 
 
 # Find and clone zm-build with latest branch given version to build.
+# %%% Bug here: tag should be same as copyTag
+d_echo "tag [$tag] copyTag [$copyTag]"
 clone_until_success "$tags" >/dev/null 2>&1
+d_echo "tag [$tag] copyTag [$copyTag]"
 
 # pads release version and zm_build branch to two digits and constructs formatted $build_tag and $clone_tag
 zero_pad_tag_and_clone_versions
