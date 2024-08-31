@@ -1081,6 +1081,8 @@ d_echo "tags: $TAGS_STRING"
 # If zm-mailbox folder exists, --clean wasn't run, build will fail, so abort. unless dry-run where we are not building
 if [ -d zm-mailbox ]; then
     if [ "$dryrun" -eq 0 ]; then
+        # %%% should we not do it here and not exit???
+        # /bin/rm -rf zm-* j* neko* ant* ical* .staging*
         echo "You must run the script with --clean option before each new build (even if rebuilding the same version)"
         echo "The zm-build process will fail if this is not done!"
         exit 1
