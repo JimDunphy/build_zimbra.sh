@@ -4,7 +4,7 @@ It will install the development environment on any of the supported platforms an
 
 * [https://github.com/ianw1974/zimbra-build-scripts](https://github.com/ianw1974/zimbra-build-scripts)
 
-This script can build any version and release in 10.1,10.0,9.0, and 8.8.15 FOSS zimbra and will create a tarball when completed. 
+This script can build any version and release in 10.1 ,10.0, 9.0, and 8.8.15 FOSS zimbra and will create a tarball when completed. 
 
 * You will extract the tarball and issue `install.sh` - See [zimbra wiki documentation](https://wiki.zimbra.com/wiki/Zimbra_Releases/8.7.0/Single_Server_Installation)
 * During the above installation, third party components are supplied by pre-built zimbra repositories (nginx, ldap, etc).
@@ -16,7 +16,7 @@ This script can build any version and release in 10.1,10.0,9.0, and 8.8.15 FOSS 
 Install the development environment for any supported Zimbra platforms. This will prompt for root via sudo to allow all software and components to be installed.
 
 ```sh
-./build_zimbra.sh --init
+% ./build_zimbra.sh --init
 ```
 
 ## Step 2
@@ -24,30 +24,30 @@ Install the development environment for any supported Zimbra platforms. This wil
 Build the latest version using the --version option 
 
 ```sh
-./build_zimbra.sh --version 10.0
+% ./build_zimbra.sh --version 10.0
 ```
 
 or Build a specific release.
 
 ```sh
-./build_zimbra.sh --version 10.0.7
+% ./build_zimbra.sh --version 10.0.7
 ```
 
 ## Tags
 
 When Zimbra creates releases, they will tag it. Issue any of the following commands to see the tags for your release but this is no longer necessary as
-the script will generate the correct tags dynamically.
+the script will generate the correct tags on the fly dynamically as this process has been sped up. It can now be done in less than 10 seconds to go through 54+ repositories marking the highest tag for that repository. 
 
 ```sh
-./build_zimbra.sh --tags10.1
-./build_zimbra.sh --tags10.0
-./build_zimbra.sh --tags9.0
-./build_zimbra.sh --tags8.8.15
-./build_zimbra.sh --tags    # Create all files
-ls tags*
-tags_for_10_0.txt  tags_for_10_1.txt  tags_for_8_8_15.txt  tags_for_9_0.txt
-cat tags_for_10.txt 
-# 10.0.8,10.0.7,10.0.6,10.0.5,10.0.4,10.0.2,10.0.1,10.0.0-GA,10.0.0
+% ./build_zimbra.sh --tags10.1
+% ./build_zimbra.sh --tags10.0
+% ./build_zimbra.sh --tags9.0
+% ./build_zimbra.sh --tags8.8.15
+% ./build_zimbra.sh --tags    # Create all files
+% ls tags*
+% tags_for_10_0.txt  tags_for_10_1.txt  tags_for_8_8_15.txt  tags_for_9_0.txt
+% cat tags_for_10.txt 
+10.0.8,10.0.7,10.0.6,10.0.5,10.0.4,10.0.2,10.0.1,10.0.0-GA,10.0.0
 ```
 
 ## Building New Patch Releases 
@@ -55,16 +55,15 @@ cat tags_for_10.txt
 Your current directory contains a previous build for Zimbra 10.0.7. You can verify this by running any of the commands below:
 
 ```sh
-./build_zimbra.sh --version 10.0.7 --dry-run
-tail -1 builds.log
-ls -lt BUILDS
+% ./build_zimbra.sh --version 10.0.7 --dry-run
+% tail -1 builds.log
+% ls -lt BUILDS
 ```
 
 A new patch 10.0.8 was announced and you now want to build this latest patch release.
 
 ```sh
-./build_zimbra.sh --tags
-./build_zimbra.sh --version 10.0.8 --clean 
+% ./build_zimbra.sh --version 10.0.8 --clean 
 ```
 
 **Note**: If you forget to `--clean`, the program will stop and warn you. It can take [Zimbra up to a week](https://forums.zimbra.org/viewtopic.php?p=313525#p313525) to push their new patches to the FOSS GitHub after they announce a new NETWORK release. Using the `./build_zimbra.sh --show-tags` will provide a list of repositories, the tag, and date to help determine when.
@@ -74,11 +73,11 @@ A new patch 10.0.8 was announced and you now want to build this latest patch rel
 The [Zimbra build documentation](https://github.com/Zimbra/zm-build) describes doing the following:
 
 ```sh
-mkdir installer-build
-cd installer-build
-git clone --depth 1 --branch 10.0.6 git@github.com:Zimbra/zm-build.git
-cd zm-build
-ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag=10.0.8,10.0.7,10.0.6,10.0.5,10.0.4,10.0.3,10.0.2,10.0.1,10.0.0-GA --build-release-no=10.0.8 --build-type=FOSS --build-release=LIBERTY --build-release-candidate=GA --build-thirdparty-server=files.zimbra.com --no-interactive
+% mkdir installer-build
+% cd installer-build
+% git clone --depth 1 --branch 10.0.6 git@github.com:Zimbra/zm-build.git
+% cd zm-build
+% ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag=10.0.8,10.0.7,10.0.6,10.0.5,10.0.4,10.0.3,10.0.2,10.0.1,10.0.0-GA --build-release-no=10.0.8 --build-type=FOSS --build-release=LIBERTY --build-release-candidate=GA --build-thirdparty-server=files.zimbra.com --no-interactive
 ```
 
 There are 2 parts to this complex command line:
@@ -92,7 +91,7 @@ This script iterates through the GitHub repository and builds the tags for the z
 
 ```sh
 ```
-./build_zimbra.sh --help
+% ./build_zimbra.sh --help
 
         ./build_zimbra.sh
         --init                     #first time to setup envioroment (only once)
@@ -142,9 +141,8 @@ This script iterates through the GitHub repository and builds the tags for the z
 See how it will build the latest version of 10.0: (Note: you could use `--version 10.0.7` if you know the patch you want)
 
 ```sh
-./build_zimbra.sh --version 10.0 --dry-run
+% ./build_zimbra.sh --version 10.0 --dry-run
 #!/bin/sh
-
 git clone --depth 1 --branch "10.0.6" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="10.0.7,10.0.6,10.0.5,10.0.4,10.0.2,10.0.1,10.0.0-GA,10.0.0" --build-release-no="10.0.7" --build-type=FOSS --build-release="DAFFODIL" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=GA
@@ -153,7 +151,7 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 Now build version 10.0 patch 7 shown above:
 
 ```sh
-./build_zimbra.sh --version 10.0
+% ./build_zimbra.sh --version 10.0.7
 ...
 ...
 ...sudo bash -s <<"EOM_SCRIPT"
@@ -184,9 +182,8 @@ BUILDS/RHEL8_64-JOULE-8815-20240319111605-FOSS-1000/zcs-8.8.15_GA_P46_1000.RHEL8
 See what it takes to build Zimbra version 8:
 
 ```sh
-./build_zimbra.sh --version 8.8.15 --dry-run
+% ./build_zimbra.sh --version 8.8.15 --dry-run
 #!/bin/sh
-
 git clone --depth 1 --branch "8.8.15.p45" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="8.8.15.p46,8.8.15.p45,8.8.15.p44,8.8.15.p43,8.8.15.p41,8.8.15.p40,8.8.15.P40,8.8.15.p39.1,8.8.15.p39,8.8.15.p37,8.8.15.p36,8.8.15.p35,8.8.15.p34,8.8.15.p33,8.8.15.p32,8.8.15.p31.1,8.8.15.p31,8.8.15.p30,8.8.15.p29,8.8.15.p28,8.8.15.p27,8.8.15.p26,8.8.15.p25,8.8.15.p24,8.8.15.p17,8.8.15.p23,8.8.15.p22,8.8.15.p21,8.8.15.p20,8.8.15.p19,8.8.15.p18,8.8.15.p15.nysa,8.8.15.p16,8.8.15.p15,8.8.15.p14,8.8.15.p13,8.8.15.p12,8.8.15.p11,8.8.15.p10,8.8.15.p9,8.8.15.p8,8.8.15.p7,8.8.15.p6.1,8.8.15.p6,8.8.15.p5,8.8.15.p4,8.8.15.p3,8.8.15.p2,8.8.15.p1,8.8.15.0,8.8.15" --build-release-no="8.8.15" --build-type=FOSS --build-release="JOULE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=GA_P46
@@ -195,9 +192,8 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 Now Version 9.
 
 ```sh
-./build_zimbra.sh --version 9.0 --dry-run
+% ./build_zimbra.sh --version 9.0 --dry-run
 #!/bin/sh
-
 git clone --depth 1 --branch "9.0.0.p38" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="9.0.0.p39,9.0.0.p38,9.0.0.p37,9.0.0.p36,9.0.0.p34,9.0.0.p33,9.0.0.P33,9.0.0.p32.1,9.0.0.p32,9.0.0.p30,9.0.0.p29,9.0.0.p28,9.0.0.p27,9.0.0.p26,9.0.0.p25,9.0.0.p24.1,9.0.0.p24,9.0.0.p23,9.0.0.p22,9.0.0.p21,9.0.0.p20,9.0.0.p19,9.0.0.p18,9.0.0.p17,9.0.0.p16,9.0.0.p15,9.0.0.p14,9.0.0.p13,9.0.0.p12,9.0.0.p11,9.0.0.p10,9.0.0.p9,9.0.0.p8,9.0.0.p7,9.0.0.p6,9.0.0.p5,9.0.0.p4,9.0.0.p3,9.0.0.p2,9.0.0.p1,9.0.0" --build-release-no="9.0.0" --build-type=FOSS --build-release="KEPLER" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=GA_P39
@@ -206,7 +202,7 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 Show latest tags in repositories
 
 ```sh
-./build_zimbra.sh --show-tags | head -10
+% ./build_zimbra.sh --show-tags | head -10
 Tag Name             Formatted Date                 Directory           
 10.0.5               2023-09-20 07:30:53            zm-admin-ajax       
 10.0.8               2024-04-11 23:38:04            zm-admin-console    
@@ -222,7 +218,7 @@ Tag Name             Formatted Date                 Directory
 Show tags used to clone the repositories for the current build
 
 ```sh
-./build_zimbra.sh --show-cloned-tags | head -10
+% ./build_zimbra.sh --show-cloned-tags | head -10
 Tag Name             Formatted Date                 Directory           
 10.0.5               2023-09-20 07:30:53            zm-admin-ajax       
 10.0.8               2024-04-11 23:38:04            zm-admin-console    
@@ -240,7 +236,7 @@ Tag Name             Formatted Date                 Directory
 This script will attempt to label the builds and document how the build was created. It will encode the tags used in the build what branch that zm-build.git was checked out to do the build. An example:
 
 ```sh
-ls -lt BUILDS/
+% ls -lt BUILDS/
 drwxr-xr-x 3 jad jad 4096 Apr 22 09:29 RHEL8_64-DAFFODIL_T100008C100006FOSS-1008-20240422091945-FOSS-1131007
 drwxr-xr-x 3 jad jad 4096 Apr 22 06:24 RHEL8_64-DAFFODIL_T100007C100006JAD-1007-20240422061457-FOSS-1131006
 drwxr-xr-x 3 jad jad 4096 Apr 22 06:08 RHEL8_64-DAFFODIL_T100008C100006FOSS-1008-20240422055830-FOSS-1131005
@@ -268,9 +264,8 @@ contains a few bits of information. Here is what we know from T100008C100006FOSS
 Here is how the build was previously created:
 
 ```sh
-./build_zimbra.sh --version 10.0.8 --dry-run
+% ./build_zimbra.sh --version 10.0.8 --dry-run
 #!/bin/sh
-
 git clone --depth 1 --branch "10.0.6" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="10.0.8,10.0.7,10.0.6,10.0.5,10.0.4,10.0.2,10.0.1,10.0.0-GA,10.0.0" --build-release-no="10.0.8" --build-type=FOSS --build-release="DAFFODIL_T100008C100006FOSS" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=GA
@@ -279,7 +274,7 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 To brand the build and create a new build, you can do this:
 
 ```sh
-./build_zimbra.sh --clean --version 10.0.7 --builder JAD
+% ./build_zimbra.sh --clean --version 10.0.7 --builder JAD
 ```
 
 And the FOSS will be removed and replaced with JAD. The encoding is still FOSS-1011006
@@ -299,7 +294,7 @@ The script maintains 3 state files and they are created automatically. You can c
 * builds.logs
 
 ```sh
-cat builds.log
+% cat builds.log
 0240420-162530  4311006  RHEL8_64-DAFFODIL_T100007C100006FOSS-1007-20240420161606-FOSS-4311006
 20240421-070503  1011001  RHEL8_64-DAFFODIL_T100008C100006FOSS-1008-20240421065519-FOSS-1011001
 20240421-073241  1031003  RHEL8_64-JOULE_T080815p46C080815p45JAD-8815-20240421071950-FOSS-1031003
