@@ -10,11 +10,6 @@
 #
 # CAVEAT: Command option --init needs to run as root. Script uses sudo and prompts user when required.
 #
-#         %%%
-#         --tags,--tags9, --tags8 do not work with dry-run. The issue is that we have a cached version of the tags. To generate new tags, takes
-#              some time but would be required to figure out tags for a --dry-run for example. Therefore, we exit on tags eventhough --dry-run
-#              was specified. We will however have a new cached list of tags that future builds can use. Chicken/Egg problem for --dry-run.
-#
 #         .build.builder file is populated with a starting alphanumeric string provided using the --builder option or defaulting to FOSS if none is provided
 #                            builder can be changed at any time using --builder alphanumeric
 #         .build.number file is populated with a starting build in the format IIInnnn where III is a three digit builder id number, greater 
@@ -39,9 +34,10 @@
 #       V Sherwood 4/22/2024
 #         Store .build.builder, default to FOSS if file not found and --builder option not supplied 
 #         Allow --clean to be specified with --version
+#       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
 #
 
-scriptVersion=2.1
+scriptVersion=2.2
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -51,7 +47,6 @@ builder_name_file=".build.builder"
 debug=0
 
 # Static Tag files
-tagBuilderScript="testing/build_tags_test.sh"
 tagFileName10_1="tags_for_10_1.txt"
 tagFileName10_0="tags_for_10_0.txt"
 tagFileName9_0="tags_for_9_0.txt"
@@ -273,7 +268,7 @@ function clone_repo() {
     fi
     
     # for test cases
-    echo "Removing zm-build directory..."
+    #echo "Removing zm-build directory..."
 }
 
 
@@ -588,18 +583,16 @@ function usage() {
        $0 --version 10.0.6     # build version 10.0.6
        $0 --version 10.1.0     # build version 10.1.0
 
-       $0 --clean; $0 --version 9.0     #build version 9 
-       $0 --clean; $0 --version 8.8.15  #build version 8 
-       $0 --clean; $0 --version 10.0.9 --dry-run  #see how to build version 10.0.9
-       $0 --clean; $0 --version 10.0.8  #build version 10.0.8
-       $0 --clean; $0 --version 10.1.1  #build version 10.1.1
+       $0 --version 9.0     #build version 9 
+       $0 --version 8.8.15  #build version 8 
+       $0 --version 10.0.9 --dry-run  #see how to build version 10.0.9
+       $0 --version 10.0.8  #build version 10.0.8
+       $0 --version 10.1.1  #build version 10.1.1
 
-      WARNING: ********************************************************************************
-        the tags are cached. If a new release comes out, you must explicity do this before building if you are using the same directory:
+      Note: ********************************************************************************
+        The tags are dynmically generated before each build. If a new release comes out, you only need to use the --version to build the next release.
+        A --clean is issued if a previous build was found. The only time this does not happen is if the --debug flag is issued.
 
-       $0 --clean; $0 --tags
-
-      This is because the tags are cached in a file and need to recalculated again.
       *****************************************************************************************
   "
 }
@@ -661,9 +654,12 @@ function tag_generate () {
   #    $version
   #    $tags
 
-  # Are we Building a specific version or the latest version?
-  version_pattern=$(extract_version_pattern $version)
-  specificVersion=$?  # specific version or build latest version
+  #
+  # Globals
+  #     $version_pattern $major $minor $rev $ext $specificVersion
+  # populate version patterns required for the build and tags required
+  extract_version_pattern $version
+  d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
 
   # Command to grab the tags for this version
   get_inline_tags_cmd="get_inline_tags $specificVersion $version_pattern $version"
@@ -848,8 +844,8 @@ function strip_newer_tags()
     # If earlier_releases contains everything then the requested release does not exist
     echo "Bad release number requested - $release!"
     echo "You must specify a release number from the tag list: $tags"
-    echo "If a recent zimbra release is not in the tags list then re-run the script with option"
-    echo "  --tags/--tags9/--tags8 as appropriate to update your local tags_for_nn.txt file"
+    echo "If a recent zimbra release is not in the tags list then re-run the script with option --dry-run"
+    echo "  or create tags files with --tags as appropriate to view possible tags_for_nn.txt file for version"
     exit 0
   else
     if [ -n "$earlier_releases" ]; then
@@ -931,7 +927,7 @@ while [ $# -ge 1 ]; do
                     ;;
                 --upgrade)
                     echo cp $0 $0.$scriptVersion
-                    echo wget -O $0 'https://raw.githubusercontent.com/JimDunphy/ZimbraScripts/master/src/build_zimbra.sh' 
+                    echo wget -O $0 'https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh'
                     exit 0
                     ;;
                 --dry-run)
@@ -946,7 +942,7 @@ while [ $# -ge 1 ]; do
                     #     currently removing zm-build in explict tags,tags9 option. What about --dry-run?
                     clean=true
                     echo "Cleaning up ..."
-                    /bin/rm -rf zm-* j* neko* ant* ical* .staging*
+                    /bin/rm -rf zm-* ja* ju* neko* ant* ical* .staging*
                     echo "Done!"
                     shift
                     ;;
@@ -1082,10 +1078,10 @@ d_echo "tags: $TAGS_STRING"
 if [ -d zm-mailbox ]; then
     if [ "$dryrun" -eq 0 ]; then
         # %%% should we not do it here and not exit???
-        # /bin/rm -rf zm-* j* neko* ant* ical* .staging*
-        echo "You must run the script with --clean option before each new build (even if rebuilding the same version)"
-        echo "The zm-build process will fail if this is not done!"
-        exit 1
+        /bin/rm -rf zm-* ja* ju* neko* ant* ical* .staging*
+        #echo "You must run the script with --clean option before each new build (even if rebuilding the same version)"
+        #echo "The zm-build process will fail if this is not done!"
+        #exit 1
     fi
 fi
 

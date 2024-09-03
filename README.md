@@ -63,10 +63,10 @@ Your current directory contains a previous build for Zimbra 10.0.7. You can veri
 A new patch 10.0.8 was announced and you now want to build this latest patch release.
 
 ```sh
-% ./build_zimbra.sh --version 10.0.8 --clean 
+% ./build_zimbra.sh --version 10.0.8 
 ```
 
-**Note**: If you forget to `--clean`, the program will stop and warn you. It can take [Zimbra up to a week](https://forums.zimbra.org/viewtopic.php?p=313525#p313525) to push their new patches to the FOSS GitHub after they announce a new NETWORK release. Using the `./build_zimbra.sh --show-tags` will provide a list of repositories, the tag, and date to help determine when.
+**Note**: It can take [Zimbra up to a week](https://forums.zimbra.org/viewtopic.php?p=313525#p313525) to push their new patches to the FOSS GitHub after they announce a new NETWORK release. Using the `./build_zimbra.sh --show-tags` will provide a list of repositories, the tag, and date to help determine when.
 
 ## How it Works
 
@@ -123,19 +123,18 @@ This script iterates through the GitHub repository and builds the tags for the z
        ./build_zimbra.sh --version 10.0.6     # build version 10.0.6
        ./build_zimbra.sh --version 10.1.0     # build version 10.1.0
 
-       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 9.0     #build version 9 
-       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 8.8.15  #build version 8 
-       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10.0.9 --dry-run  #see how to build version 10.0.9
-       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10.0.8  #build version 10.0.8
-       ./build_zimbra.sh --clean; ./build_zimbra.sh --version 10.1.1  #build version 10.1.1
+       ./build_zimbra.sh --version 9.0     #build version 9 
+       ./build_zimbra.sh --version 8.8.15  #build version 8 
+       ./build_zimbra.sh --version 10.0.9 --dry-run  #see how to build version 10.0.9
+       ./build_zimbra.sh --version 10.0.8  #build version 10.0.8
+       ./build_zimbra.sh --version 10.1.1  #build version 10.1.1
 
-      WARNING: ********************************************************************************
-        the tags are cached. If a new release comes out, you must explicity do this before building if you are using the same directory:
+      Note: ********************************************************************************
+        The tags are dynmically generated before each build. If a new release comes out, you only need to use the --version to build the next release.
+        A --clean is issued if a previous build was found. The only time this does not happen is if the --debug flag is issued.
 
-       ./build_zimbra.sh --clean; ./build_zimbra.sh --tags
-
-      This is because the tags are cached in a file and need to recalculated again.
       *****************************************************************************************
+
 
 
 See how it will build the latest version of 10.0: (Note: you could use `--version 10.0.7` if you know the patch you want)
@@ -274,7 +273,7 @@ ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-defaul
 To brand the build and create a new build, you can do this:
 
 ```sh
-% ./build_zimbra.sh --clean --version 10.0.7 --builder JAD
+% ./build_zimbra.sh --version 10.0.7 --builder JAD
 ```
 
 And the FOSS will be removed and replaced with JAD. The encoding is still FOSS-1011006

@@ -24,7 +24,6 @@ run_test() {
 
 # Test case for version 10.1
 expected_output_10_1=$(cat <<'EOF'
-Removing zm-build directory...
 Release 10.1.1
 Build Tag 100101
 CopyTag 10.1.1
@@ -38,7 +37,6 @@ EOF
 
 # Test case for version 10.0
 expected_output_10_0=$(cat <<'EOF'
-Removing zm-build directory...
 Release 10.0.9
 Build Tag 100009
 CopyTag 10.0.9
@@ -52,7 +50,6 @@ EOF
 
 # Test case for version 9.0
 expected_output_9_0=$(cat <<'EOF'
-Removing zm-build directory...
 Release 9.0.0.p41
 Build Tag 090000p41
 CopyTag 9.0.0.p38
@@ -66,7 +63,6 @@ EOF
 
 # Test case for version 8.8.15
 expected_output_8_8_15=$(cat <<'EOF'
-Removing zm-build directory...
 Release 8.8.15.p46
 Build Tag 080815p46
 CopyTag 8.8.15.p45
