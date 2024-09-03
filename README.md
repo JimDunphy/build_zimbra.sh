@@ -1,6 +1,8 @@
-# Script to Compile Zimbra FOSS
+# Script to Compile Zimbra FOSS by Version
 
-It will install the development environment on any of the supported platforms and allow one to build a zimbra release for Version 8.8.15, 9, and 10. Script can be found here: [build_zimbra.sh](https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh). To use this script, you must have previously set up your GitHub account (free) and imported your SSH keys to be able to git clone the repositories and have zm-build/build.pl work. If unsure, see this [link](https://github.com/ianw1974/zimbra-build-scripts) as Ian's script will be installing the dependencies. The script uses this repository.
+A single bash script that will build a zimbra release based on the version (AKA: git tag) in contrast to what is actively being worked on in the development tree which may or may not be in a consistent state at the time of the build. It attempts to match NETWORK versions for FOSS version builds.
+
+The script will install the development environment on any of the supported platforms and allow one to build a zimbra release for Version 8.8.15, 9, and 10. It can be found here: [build_zimbra.sh](https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh). To use this script, you must have previously set up your GitHub account (free) and imported your SSH keys to be able to git clone the repositories and have zm-build/build.pl work. If unsure, see this [link](https://github.com/ianw1974/zimbra-build-scripts) as Ian's script will be installing the dependencies. The script uses this repository from Ian.
 
 * [https://github.com/ianw1974/zimbra-build-scripts](https://github.com/ianw1974/zimbra-build-scripts)
 
@@ -9,11 +11,11 @@ This script can build any version and release in 10.1 ,10.0, 9.0, and 8.8.15 FOS
 * You will extract the tarball and issue `install.sh` - See [zimbra wiki documentation](https://wiki.zimbra.com/wiki/Zimbra_Releases/8.7.0/Single_Server_Installation)
 * During the above installation, third party components are supplied by pre-built zimbra repositories (nginx, ldap, etc).
 
-**Note**: If you use this script and an official patch is released, you will need to repeat the above process. 
+**Note**: If you use this script and a new patch is released, you repeat the build to obtain that release. The Zimbra supplied install.sh in the tarball is smart enough to handle updates vs new installs.
 
-## Step 1
+## Step 1 (one time only)
 
-Install the development environment for any supported Zimbra platforms. This will prompt for root via sudo to allow all software and components to be installed.
+Install the development environment for any supported Zimbra platforms. This will prompt for root via sudo to allow all software and build components to be installed.
 
 ```sh
 % ./build_zimbra.sh --init
@@ -35,8 +37,8 @@ or Build a specific release.
 
 ## Tags
 
-When Zimbra creates releases, they will tag it. Issue any of the following commands to see the tags for your release but this is no longer necessary as
-the script will generate the correct tags on the fly dynamically as this process has been sped up. It can now be done in less than 10 seconds to go through 54+ repositories marking the highest tag for that repository. 
+When Zimbra creates releases, they will tag it. Issue any of the following commands to see the tags for your release but this step is no longer necessary as
+the script will generate the correct tags on the fly dynamically as the process has been sped up and only takes about 10 seconds to go through 54+ repositories marking the highest tag for each repository in your version build. 
 
 ```sh
 % ./build_zimbra.sh --tags10.1
@@ -66,7 +68,7 @@ A new patch 10.0.8 was announced and you now want to build this latest patch rel
 % ./build_zimbra.sh --version 10.0.8 
 ```
 
-**Note**: It can take [Zimbra up to a week](https://forums.zimbra.org/viewtopic.php?p=313525#p313525) to push their new patches to the FOSS GitHub after they announce a new NETWORK release. Using the `./build_zimbra.sh --show-tags` will provide a list of repositories, the tag, and date to help determine when.
+**Note**: It can take [Zimbra up to a week](https://forums.zimbra.org/viewtopic.php?p=313525#p313525) to push all their new patches to the FOSS GitHub after they announce a new NETWORK release. Using the `./build_zimbra.sh --show-tags` will provide a list of repositories, the tag, and date to help determine when.
 
 ## How it Works
 
