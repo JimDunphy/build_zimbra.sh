@@ -37,7 +37,7 @@
 #       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
 #
 
-scriptVersion=2.2
+scriptVersion=2.3
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -1122,9 +1122,11 @@ if [ $dryrun -eq 1 ]; then
   echo "$commands"
   exit 0
 else
+  # Copy .build.number into the cloned zm-build. build.pl will increment the number and save it back before the build starts
+  commands=$(echo "$commands" | sed "/cd zm-build/i\cp ${build_number_file} zm-build")
   eval "$commands"
-  cd .. 
-  cp ${build_number_file} .
+  cp ${build_number_file} ..
+  cd ..
 fi
 
 # Log the build
