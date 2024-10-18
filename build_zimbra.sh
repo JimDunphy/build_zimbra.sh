@@ -37,7 +37,7 @@
 #       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
 #
 
-scriptVersion=2.3
+scriptVersion=2.4
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -288,7 +288,12 @@ function extract_version_pattern() {
 
     # Determine the version pattern based on the segments
     if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
-        if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
+       #if [ "${major}" -eq 10 ] && [ "${minor}" -eq 0 ]; then
+       if [ "${major}" -eq 10 ] ; then
+           # Special case for 10.0.x where we want to treat 10.0 as a general version
+           specificVersion=1
+           version_pattern="${major}.${minor}"
+        elif [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
             # Handle version pattern 8.8.15 as a general version
             specificVersion=0
             version_pattern="${major}.${minor}.${rev}"
@@ -1006,11 +1011,12 @@ fi
 #     $version_pattern $major $minor $rev $ext $specificVersion
 # populate version patterns required for the build and tags required
 extract_version_pattern $version 
-d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
 
+d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
 
 # Grab the tags for this version
 # Global
+#%%% bug because version 10.0.10 needs this: version_pattern="10.0"
 get_inline_tags $specificVersion $version_pattern $version #$tags $copyTag
 copyTag=$desired_tag
 #d_echo "tags: [$tags] copyTags: [$copyTag]" 

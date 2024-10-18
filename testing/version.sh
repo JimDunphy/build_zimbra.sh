@@ -1,7 +1,53 @@
 #!/bin/bash
 
+#Globals
+specificVersion=0
+version_output=""
+
+function extract_version_pattern() {
+    local version=$1
+
+    # globals
+    #   major, minor, rev, extra, specificVersion
+
+    # Split the input version by dots
+    IFS='.' read -ra version_array <<< "$version"
+    major="${version_array[0]}"
+    minor="${version_array[1]}"
+    rev="${version_array[2]}"
+    extra="${version_array[3]}"
+
+    # Determine the version pattern based on the segments
+    if [ -n "${major}" ] && [ -n "${minor}" ]; then
+        if [ -n "${rev}" ]; then
+            if [ -n "${extra}" ]; then
+                # Handle specific versions like 9.0.0.P46
+                specificVersion=1
+                version_pattern="${major}.${minor}.${rev}"
+            elif [ "${rev}" -eq 0 ]; then
+                # Handle general versions like 9.0.0 -> version_pattern=9.0
+                specificVersion=0
+                version_pattern="${major}.${minor}"
+            else
+                # Handle other general versions like 10.0.10 -> version_pattern=10.0
+                specificVersion=0
+                version_pattern="${major}.${minor}"
+            fi
+        else
+            # Handle general versions with only major.minor
+            specificVersion=0
+            version_pattern="${major}.${minor}"
+        fi
+    else
+        echo "Invalid version pattern"
+    fi
+
+version_output=$version_pattern
+}
+
+
 # Function to extract version pattern and determine if a specific version was provided
-extract_version_pattern() {
+extract_version_pattern_1() {
     local version=$1
     local specific_version_flag=0
 
