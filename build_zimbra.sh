@@ -35,9 +35,14 @@
 #         Store .build.builder, default to FOSS if file not found and --builder option not supplied 
 #         Allow --clean to be specified with --version
 #       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
+#       V Sherwood 10/21/2024
+#         Fixed handling in extract_version_pattern() to match the requirements for git tag searching, fixed $ext being logged instead of $extra
+#         Return two part version_pattern except if an 8.8.15 or 9.0.0 release requested return a three part version_pattern
+#         Fail and exit if major versions earlier than 10 requested (with the exceptions of 8.8.15 and 9.0.0 specifically)
+#         Fixed find_latest_tag() so it handles 8.8.15 and 9.0.0 correctly (with assumption nobody wants to specifically build the original check-ins for those) 
 #
 
-scriptVersion=2.4
+scriptVersion=2.6
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -177,18 +182,31 @@ function find_latest_tag() {
     local pattern=$2
     local specific_tag=$3
 
+    d_echo "find_latest_tag() repo_url [$repo_url] pattern [$pattern] specific_tag [$specific_tag] version [$version] "
+
     # Hard-coded return for 8.8.15
-    if [[ "$specific_tag" == "8.8.15" ]]; then
-        d_echo "*********** returning [8.8.15.p45] ****************"
-        echo "8.8.15.p45"
-        return
+    #if [[ "$specific_tag" == "8.8.15" ]]; then
+    #    d_echo "*********** returning [8.8.15.p45] ****************"
+    #    echo "8.8.15.p45"
+    #    return
+    #fi
+    # V Sherwood - Above hard coding removed in favour of following more generic check which will find later patches (if released) 
+    if [[ "$specific_tag" == "8.8.15" ]] || [[ "$specific_tag" == "9.0.0" ]]; then
+        d_echo "*********** Request for 8.8.15 or 9.0.0 - Assuming latest patch rather than 8.8.15/9.0.0 original check-in ****************"
+	
+        # Fetch and filter the tags, ignoring 'beta', 'U20', and similar words
+        tags=$(git ls-remote --tags "$repo_url" | awk '{print $2}' | grep -E "^refs/tags/$pattern" | grep -v '\^{}' | grep -Ev "$specific_tag\$" | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8')
+
+        d_echo "Running command: git ls-remote --tags \"$repo_url\" | awk '{print \$2}' | grep -E \"^refs/tags/$pattern\" | grep -v '\\^{}' | grep -Ev "$specific_tag\$" | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8'"
+        #d_echo "tags is: $tags"
+	else 
+        # Fetch and filter the tags, ignoring 'beta', 'U20', and similar words
+        tags=$(git ls-remote --tags "$repo_url" | awk '{print $2}' | grep -E "^refs/tags/$pattern" | grep -v '\^{}' | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8')
+
+        d_echo "Running command: git ls-remote --tags \"$repo_url\" | awk '{print \$2}' | grep -E \"^refs/tags/$pattern\" | grep -v '\\^{}' | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8'"
+        #d_echo "tags is: $tags"
     fi
 
-    # Fetch and filter the tags, ignoring 'beta', 'U20', and similar words
-    tags=$(git ls-remote --tags "$repo_url" | awk '{print $2}' | grep -E "^refs/tags/$pattern" | grep -v '\^{}' | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8')
-
-    d_echo "Running command: git ls-remote --tags \"$repo_url\" | awk '{print \$2}' | grep -E \"^refs/tags/$pattern\" | grep -v '\\^{}' | sed 's|refs/tags/||' | grep -vE 'beta|U20|RRHEL8'"
-    #d_echo "tags is: $tags"
 
     latest_tag=$(echo "$tags" | perl -e '
         use strict;
@@ -288,26 +306,43 @@ function extract_version_pattern() {
 
     # Determine the version pattern based on the segments
     if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
-       #if [ "${major}" -eq 10 ] && [ "${minor}" -eq 0 ]; then
-       if [ "${major}" -eq 10 ] ; then
-           # Special case for 10.0.x where we want to treat 10.0 as a general version
-           specificVersion=1
-           version_pattern="${major}.${minor}"
-        elif [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
-            # Handle version pattern 8.8.15 as a general version
-            specificVersion=0
+        if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ]; then
+            # Handle version 8.8.15 as a general version (not specific check-in 8.8.15)
+			if [ -z "${extra}" ]; then
+                specificVersion=0
+			else
+                specificVersion=1
+			fi
             version_pattern="${major}.${minor}.${rev}"
+        elif [ "${major}" -eq 9 ] && [ "${minor}" -eq 0 ] && [ "${rev}" -eq 0 ]; then
+			if [ -z "${extra}" ]; then
+                specificVersion=0
+			else
+                specificVersion=1
+			fi
+            version_pattern="${major}.${minor}.${rev}"
+        elif [ "${major}" -lt 10 ]; then
+            echo "Invalid version pattern"
+			exit 1
         else
-            # Handle other specific versions (including 8.8.15.p40, 9.0.0.p28)
+            # Handle other specific versions (including 10.0.8, 10.1.2, etc)
             specificVersion=1
-            version_pattern="${major}.${minor}.${rev}"
+            # version_pattern="${major}.${minor}.${rev}"
+			#V Sherwood - All in one requires version_pattern to be the family - not the specific version
+            version_pattern="${major}.${minor}"
         fi
     elif [ -n "${major}" ] && [ -n "${minor}" ]; then
-        # Handle version patterns like 10.1 or 10.0 (general versions)
-        specificVersion=0
-        version_pattern="${major}.${minor}"
+        if [ "${major}" -lt 10 ]; then
+            echo "Invalid version pattern"
+			exit 1
+        else
+            # Handle version patterns like 10.1 or 10.0 (general versions)
+            specificVersion=0
+            version_pattern="${major}.${minor}"
+        fi
     else
         echo "Invalid version pattern"
+		exit 1
     fi
 }
 
@@ -664,7 +699,7 @@ function tag_generate () {
   #     $version_pattern $major $minor $rev $ext $specificVersion
   # populate version patterns required for the build and tags required
   extract_version_pattern $version
-  d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
+  d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] extra [$extra] specificVersion [$specificVersion]"
 
   # Command to grab the tags for this version
   get_inline_tags_cmd="get_inline_tags $specificVersion $version_pattern $version"
@@ -730,13 +765,14 @@ clone_repo "$desired_tag"
     unique_tags=()
     print_once=false
 
+	# V Sherwood - following block should no longer be needed after extract_version_pattern() fixed
     # version_pattern is set to 10.0.9 when it needs to be 10.0
     # We have a list of tags that contain version 8,9,10,etc ... version_pattern is a grep on that list
-    if [[ $version == 8.8.15* ]]; then
-       version_pattern="8.8.15"
-    else
-       version_pattern="${major}.${minor}"
-    fi
+    #if [[ $version == 8.8.15* ]]; then
+    #   version_pattern="8.8.15"
+    #else
+    #   version_pattern="${major}.${minor}"
+    #fi
 
     d_echo "Version [$version] Release [$release] version_pattern [$version_pattern]"
     while IFS= read -r repo_url
@@ -1012,7 +1048,7 @@ fi
 # populate version patterns required for the build and tags required
 extract_version_pattern $version 
 
-d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] ext [$ext] specificVersion [$specificVersion]"
+d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] extra [$extra] specificVersion [$specificVersion]"
 
 # Grab the tags for this version
 # Global
@@ -1043,7 +1079,7 @@ case "$version" in
     PATCH_LEVEL="GA"
     BUILD_RELEASE="JOULE"
     ;;
-  "9.0")
+  "9.0"|"9.0.0"|"9.0*")
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     fi
