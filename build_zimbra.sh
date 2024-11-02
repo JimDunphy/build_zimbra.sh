@@ -42,7 +42,7 @@
 #         Fixed find_latest_tag() so it handles 8.8.15 and 9.0.0 correctly (with assumption nobody wants to specifically build the original check-ins for those) 
 #
 
-scriptVersion=2.6
+scriptVersion=2.7
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -294,6 +294,9 @@ function clone_repo() {
 function extract_version_pattern() {
     local version=$1
 
+    # side effect of version 2.6 of this code to fix what broke version 9 builds, --tags9, and --tags
+    if [ $version == "9.0" ]; then version="9.0.0"; fi	# %%% normalize so that 9.0 behaves like 8.8.15 
+
     # globals
     #   major,minor,rev,extra,specificVersion
 
@@ -332,7 +335,7 @@ function extract_version_pattern() {
             version_pattern="${major}.${minor}"
         fi
     elif [ -n "${major}" ] && [ -n "${minor}" ]; then
-        if [ "${major}" -lt 10 ]; then
+        if [ "${major}" -lt 10 ]; then		#%%% BUG: --version 9.0 would fall to this.  Quick fix: normalize 9.0 to 9.0.0 above
             echo "Invalid version pattern"
 			exit 1
         else
