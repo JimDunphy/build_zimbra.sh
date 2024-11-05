@@ -1,124 +1,91 @@
 #!/bin/bash
 
-#Globals
-specificVersion=0
-version_output=""
 
 function extract_version_pattern() {
-    local version=$1
+    local version="$1"
+    
+    #normalize so that 9.0 behaves like 10.0,10.1,10.2,11.0,...
+    if [ $version == "9.0.0" ]; then version="9.0"; fi  
 
-    # globals
-    #   major, minor, rev, extra, specificVersion
-
-    # Split the input version by dots
+    # Split the version string into components
     IFS='.' read -ra version_array <<< "$version"
-    major="${version_array[0]}"
-    minor="${version_array[1]}"
-    rev="${version_array[2]}"
-    extra="${version_array[3]}"
+    local major="${version_array[0]}"
+    local minor="${version_array[1]}"
+    local rev="${version_array[2]}"
+    local extra="${version_array[3]}"
 
-    # Determine the version pattern based on the segments
-    if [ -n "${major}" ] && [ -n "${minor}" ]; then
-        if [ -n "${rev}" ]; then
-            if [ -n "${extra}" ]; then
-                # Handle specific versions like 9.0.0.P46
-                specificVersion=1
-                version_pattern="${major}.${minor}.${rev}"
-            elif [ "${rev}" -eq 0 ]; then
-                # Handle general versions like 9.0.0 -> version_pattern=9.0
-                specificVersion=0
+    # Determine the version pattern and specificVersion status
+    if [ -n "$major" ] && [ -n "$minor" ]; then
+        if [ -n "$rev" ]; then
+            # Specific version if three segments or extra is present
+            specificVersion=1
+            if [ "${major}" -ge 9 ]; then
                 version_pattern="${major}.${minor}"
             else
-                # Handle other general versions like 10.0.10 -> version_pattern=10.0
-                specificVersion=0
-                version_pattern="${major}.${minor}"
+                version_pattern="${major}.${minor}.${rev}"
             fi
         else
-            # Handle general versions with only major.minor
+            # General version if only two segments
             specificVersion=0
             version_pattern="${major}.${minor}"
         fi
-    else
-        echo "Invalid version pattern"
-    fi
 
-version_output=$version_pattern
-}
-
-
-# Function to extract version pattern and determine if a specific version was provided
-extract_version_pattern_1() {
-    local version=$1
-    local specific_version_flag=0
-
-    # Split the input version by dots
-    IFS='.' read -ra version_array <<< "$version"
-    major="${version_array[0]}"
-    minor="${version_array[1]}"
-    rev="${version_array[2]}"
-
-    # Determine the version pattern based on the segments
-    if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
-        specific_version_flag=1
-        if [ "${major}" -eq 8 ]; then
-            # Handle version patterns like 8.8.15
-            echo "${major}.${minor}.${rev}"
-        else
-            # Handle version patterns like 9.0.0 and 10.0.1
-            echo "${major}.${minor}"
+        # Special handling for 8.8.15 to distinguish specific/general
+        if [ "$major" -eq 8 ] && [ "$minor" -eq 8 ] && [ "$rev" -eq 15 ]; then
+            specificVersion=$([ -z "$extra" ] && echo 0 || echo 1)
+            version_pattern="${major}.${minor}.${rev}"
         fi
-    elif [ -n "${major}" ] && [ -n "${minor}" ]; then
-        # Handle version patterns like 10.1
-        specific_version_flag=0
-        echo "${major}.${minor}"
-    else
-        echo "Invalid version pattern"
-    fi
 
-    return $specific_version_flag
+    else
+        # Invalid version format for cases missing required segments
+        echo "Invalid version pattern"
+        #exit 1
+    fi
 }
 
-# Example usage with expected output
-echo "Testing with '9.0.0.p38'"
-version_output=$(extract_version_pattern "9.0.0.p38")
-flag=$?
-echo "Extracted version pattern: $version_output  # Expected: 9.0"
-echo "Specific version: $flag                     # Expected: 1"
-echo
+# Color codes
+RED='\033[31m'
+GREEN='\033[32m'
+NC='\033[0m' # No Color (reset)
 
-# Example usage with expected output
-echo "Testing with '9.0.0.p16'"
-version_output=$(extract_version_pattern "9.0.0.p16")
-flag=$?
-echo "Extracted version pattern: $version_output  # Expected: 9.0"
-echo "Specific version: $flag                     # Expected: 1"
-echo
+# Define the test function
+function test_extract_version_pattern() {
+    local input_version="$1"
+    local expected_pattern="$2"
+    local expected_flag="$3"
 
-echo "Testing with '10.0.2'"
-version_output=$(extract_version_pattern "10.0.2")
-flag=$?
-echo "Extracted version pattern: $version_output  # Expected: 10.0"
-echo "Specific version: $flag                     # Expected: 1"
-echo
+    echo "Testing with '$input_version'"
 
-echo "Testing with '8.8.15.p46'"
-version_output=$(extract_version_pattern "8.8.15.p46")
-flag=$?
-echo "Extracted version pattern: $version_output  # Expected: 8.8.15"
-echo "Specific version: $flag                     # Expected: 1"
-echo
+    # Call extract_version_pattern and capture output
+    version_pattern=""
+    specificVersion=""
+    extract_version_pattern "$input_version"
+    flag=$specificVersion
 
-echo "Testing with '10.1'"
-version_output=$(extract_version_pattern "10.1")
-flag=$?
-echo "Extracted version pattern: $version_output  # Expected: 10.1"
-echo "Specific version: $flag                     # Expected: 0"
-echo
+    # Display results and compare with expected values
+    echo "Extracted version pattern: $version_pattern  # Expected: $expected_pattern"
+    echo "Specific version: $flag                     # Expected: $expected_flag"
+    echo
 
-echo "Testing with '10.1.5'"
-version_output=$(extract_version_pattern "10.1.5")
-flag=$?
-echo "Extracted version pattern: $version_output  # Expected: 10.1"
-echo "Specific version: $flag                     # Expected: 1"
-echo
+    # Check if results match expected values
+    if [[ "$version_pattern" == "$expected_pattern" && "$flag" -eq "$expected_flag" ]]; then
+       echo -e "${GREEN}Test passed.${NC}"
+    else
+       echo -e "${RED}Test failed.${NC}"
+    fi
+    echo "-----------------------------"
+}
 
+# Test cases
+# [version] [expected version pattern] [specific version]
+test_extract_version_pattern "10.0.2" "10.0" 1
+test_extract_version_pattern "10.1.0" "10.1" 1
+test_extract_version_pattern "10.1" "10.1" 0
+test_extract_version_pattern "10.0" "10.0" 0
+test_extract_version_pattern "9.0" "9.0" 0
+test_extract_version_pattern "9.0.0" "9.0" 0
+test_extract_version_pattern "9.0.0.p38" "9.0" 1
+test_extract_version_pattern "8.8.15" "8.8.15" 0
+test_extract_version_pattern "8.8.15.p31" "8.8.15" 1
+test_extract_version_pattern "11.0.3" "11.0" 1
+test_extract_version_pattern "12.1" "12.1" 0

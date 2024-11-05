@@ -3,7 +3,7 @@
 #
 # Author: J Dunphy 3/14/2024
 #
-# Purpose:  Build a zimbra FOSS version based on latest tags in the Zimbra FOSS github for version 8.8.15, 9.0.0 or 10.0.0
+# Purpose:  Build a zimbra FOSS version based on latest tags in the Zimbra FOSS github for version 8.8.15, 9.0.0 , 10.0.0, 10.1.0, etc
 #               The end result is there will be a tarball inside the BUILDS directory that can be installed which contains a install.sh script
 #
 # Documentation: https://wiki.zimbra.com/wiki/JDunphy-CompileZimbraScript
@@ -35,14 +35,17 @@
 #         Store .build.builder, default to FOSS if file not found and --builder option not supplied 
 #         Allow --clean to be specified with --version
 #       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
-#       V Sherwood 10/21/2024
-#         Fixed handling in extract_version_pattern() to match the requirements for git tag searching, fixed $ext being logged instead of $extra
-#         Return two part version_pattern except if an 8.8.15 or 9.0.0 release requested return a three part version_pattern
-#         Fail and exit if major versions earlier than 10 requested (with the exceptions of 8.8.15 and 9.0.0 specifically)
-#         Fixed find_latest_tag() so it handles 8.8.15 and 9.0.0 correctly (with assumption nobody wants to specifically build the original check-ins for those) 
+#          - replacement extract_version_pattern(), cleanup of unused code, and prepare for future versions that
+#            should build if the tagging syntax stays sane.
+#
+# CAVEATS: there are older versions that no longer build because the repositories have been removed from github 
+#      - 9.0.0.p25 is oldest version on that release
+#      - 8.8.15.p33 is oldest version on that release
+#
+#        Tags - will not work without modification to this script when a new version of Zimbra is released.
 #
 
-scriptVersion=2.7
+scriptVersion=2.8
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -52,6 +55,7 @@ builder_name_file=".build.builder"
 debug=0
 
 # Static Tag files
+tagFileName10_2="tags_for_10_2.txt"	#future
 tagFileName10_1="tags_for_10_1.txt"
 tagFileName10_0="tags_for_10_0.txt"
 tagFileName9_0="tags_for_9_0.txt"
@@ -184,13 +188,6 @@ function find_latest_tag() {
 
     d_echo "find_latest_tag() repo_url [$repo_url] pattern [$pattern] specific_tag [$specific_tag] version [$version] "
 
-    # Hard-coded return for 8.8.15
-    #if [[ "$specific_tag" == "8.8.15" ]]; then
-    #    d_echo "*********** returning [8.8.15.p45] ****************"
-    #    echo "8.8.15.p45"
-    #    return
-    #fi
-    # V Sherwood - Above hard coding removed in favour of following more generic check which will find later patches (if released) 
     if [[ "$specific_tag" == "8.8.15" ]] || [[ "$specific_tag" == "9.0.0" ]]; then
         d_echo "*********** Request for 8.8.15 or 9.0.0 - Assuming latest patch rather than 8.8.15/9.0.0 original check-in ****************"
 	
@@ -262,7 +259,7 @@ function find_latest_tag() {
 
 #-----------------------------------------------------------------------------------------------------------
 
-# clone the repository with the desired tag
+# clone the zm-build repository with the desired tag
 function clone_repo() {
     local tag=$1
     local repo_url="git@github.com:Zimbra/zm-build.git"
@@ -284,104 +281,61 @@ function clone_repo() {
         echo "Error: Failed to clone the repository. Exiting." >&2
         exit 1
     fi
-    
-    # for test cases
-    #echo "Removing zm-build directory..."
 }
 
-
 #---------------------------------------------------------------------------------------------------
+# Given a version, we return a version pattern and if they want a specific build or the lastest build.
+#
+#  Examples: version 10.0.1 would have a version_pattern of 10.0 and specificVersion=1
+#            version 10.0  would have a version_pattern of 10.0 and specificVersion=0
+#            version 8.8.15.p45  would have a version_pattern of 8.8.15 and specificVersion=1
+#            version 8.8.15  would have a version_pattern of 8.8.15 and specificVersion=0
+#            version 9.0.0  would have a version_pattern of 9.0 and specificVersion=0
+#            version 9.0.0.p32  would have a version_pattern of 9.0 and specificVersion=1
+#  Should be future proof if Zimbra versioning continues like 10.0,10.1,10.2,...,N.N
+#
+
 function extract_version_pattern() {
-    local version=$1
+    local version="$1"
+    
+    #normalize so that 9.0 behaves like 10.0,10.1,10.2,11.0,...
+    if [ $version == "9.0.0" ]; then version="9.0"; fi  
 
-    # side effect of version 2.6 of this code to fix what broke version 9 builds, --tags9, and --tags
-    if [ $version == "9.0" ]; then version="9.0.0"; fi	# %%% normalize so that 9.0 behaves like 8.8.15 
-
-    # globals
-    #   major,minor,rev,extra,specificVersion
-
-    # Split the input version by dots
+    # Split the version string into components. 
     IFS='.' read -ra version_array <<< "$version"
-    major="${version_array[0]}"
-    minor="${version_array[1]}"
-    rev="${version_array[2]}"
-    extra="${version_array[3]}"
+    major="${version_array[0]}"		# Global
+    minor="${version_array[1]}"		# Global
+    local rev="${version_array[2]}"
+    local extra="${version_array[3]}"
 
-    # Determine the version pattern based on the segments
-    if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
-        if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ]; then
-            # Handle version 8.8.15 as a general version (not specific check-in 8.8.15)
-			if [ -z "${extra}" ]; then
-                specificVersion=0
-			else
-                specificVersion=1
-			fi
-            version_pattern="${major}.${minor}.${rev}"
-        elif [ "${major}" -eq 9 ] && [ "${minor}" -eq 0 ] && [ "${rev}" -eq 0 ]; then
-			if [ -z "${extra}" ]; then
-                specificVersion=0
-			else
-                specificVersion=1
-			fi
-            version_pattern="${major}.${minor}.${rev}"
-        elif [ "${major}" -lt 10 ]; then
-            echo "Invalid version pattern"
-			exit 1
-        else
-            # Handle other specific versions (including 10.0.8, 10.1.2, etc)
+    # Determine the version pattern and specificVersion status
+    if [ -n "$major" ] && [ -n "$minor" ]; then
+        if [ -n "$rev" ]; then
+            # Specific version if three segments or extra is present
             specificVersion=1
-            # version_pattern="${major}.${minor}.${rev}"
-			#V Sherwood - All in one requires version_pattern to be the family - not the specific version
-            version_pattern="${major}.${minor}"
-        fi
-    elif [ -n "${major}" ] && [ -n "${minor}" ]; then
-        if [ "${major}" -lt 10 ]; then		#%%% BUG: --version 9.0 would fall to this.  Quick fix: normalize 9.0 to 9.0.0 above
-            echo "Invalid version pattern"
-			exit 1
+            if [ "${major}" -ge 9 ]; then
+                version_pattern="${major}.${minor}"
+            else
+                version_pattern="${major}.${minor}.${rev}"
+            fi
         else
-            # Handle version patterns like 10.1 or 10.0 (general versions)
+            # General version if only two segments
             specificVersion=0
             version_pattern="${major}.${minor}"
         fi
-    else
-        echo "Invalid version pattern"
-		exit 1
-    fi
-}
 
-function extract_version_pattern_1() {
-    local version=$1
-    local specific_version_flag=0
-
-    # Split the input version by dots
-    IFS='.' read -ra version_array <<< "$version"
-    major="${version_array[0]}"
-    minor="${version_array[1]}"
-    rev="${version_array[2]}"
-    extra="${version_array[3]}"
-
-    # Determine the version pattern based on the segments
-    if [ -n "${major}" ] && [ -n "${minor}" ] && [ -n "${rev}" ]; then
-        if [ "${major}" -eq 8 ] && [ "${minor}" -eq 8 ] && [ "${rev}" -eq 15 ] && [ -z "${extra}" ]; then
-            # Handle version pattern 8.8.15 as a general version
-            specific_version_flag=0
-            echo "${major}.${minor}.${rev}"
-        else
-            # Handle other specific versions (including 8.8.15.p40, 9.0.0.p28)
-            specific_version_flag=1
-            echo "${major}.${minor}.${rev}"
+        # Special handling for 8.8.15 to distinguish specific/general
+        if [ "$major" -eq 8 ] && [ "$minor" -eq 8 ] && [ "$rev" -eq 15 ]; then
+            specificVersion=$([ -z "$extra" ] && echo 0 || echo 1)
+            version_pattern="${major}.${minor}.${rev}"
         fi
-    elif [ -n "${major}" ] && [ -n "${minor}" ]; then
-        # Handle version patterns like 10.1 or 10.0 (general versions)
-        specific_version_flag=0
-        echo "${major}.${minor}"
+
     else
+        # Invalid version format for cases missing required segments
         echo "Invalid version pattern"
+        exit 1
     fi
-
-    return $specific_version_flag
 }
-
 
 
 #
@@ -531,43 +485,7 @@ function is_three_digit_number() {
     esac
 }
 
-# %%% no longer used
-function find_tag() {
-    # find tag that we cloned the zm-build with
-    if [ -d "zm-build" ] ; then 
-       pushd zm-build
-
-       # Get the current branch name
-       copyTag=$(git describe --tags --exact-match)
-
-       # Print the current branch
-       echo "Current branch is: $copyTag"
-      popd
-    fi
-}
-
-# Fine the latest zm-build we can check out
-function clone_until_success() {
-  local tags=$1
-  local repo_url=$2
-  
-  IFS=',' read -ra TAG_ARRAY <<< "$tags"
-  for tag in "${TAG_ARRAY[@]}"; do
-    echo "Attempting to clone branch $tag..."
-    if git clone --depth 1 --branch "$tag" "git@github.com:Zimbra/zm-build.git"; then
-      echo "Successfully cloned branch $tag"
-      echo "git clone --depth 1 --branch $tag git@github.com:Zimbra/zm-build.git"
-      copyTag=$tag
-      return
-    else
-      echo "Failed to clone branch $tag. Trying the next tag..."
-    fi
-  done
-  
-  echo "All attempts failed. Unable to clone the repository with the provided tags."
-}
-
-# Tools that make this possible
+# Clone any repository if it does not exist
 function clone_if_not_exists() {
   # Extract the repo name from the URL
   repo_name=$(basename "$1" .git)
@@ -640,15 +558,6 @@ function usage() {
   "
 }
 
-function isRoot() {
-   # need to run as root because local cache has perm problem
-   ID=`id -u`
-   if [ "x$ID" != "x0" ]; then
-     echo "Run as root!"
-     exit 1
-   fi
-}
-
 # Function to run a command or function with asynchronous dots display
 run_with_dots() {
   local command="$1"
@@ -708,7 +617,11 @@ function tag_generate () {
   get_inline_tags_cmd="get_inline_tags $specificVersion $version_pattern $version"
 
   # Run the command with dots
+  # %%% instances where child process continues to run spewing dots when parent is interrupted
   run_with_dots "$get_inline_tags_cmd"
+
+  # Run the command without the dots
+  #$get_inline_tags_cmd
 
   # Write the tags variable to the file, overwriting it even if noclobber is set
   echo "$tags" >| "$tagFileName"
@@ -910,20 +823,24 @@ function zero_pad_tag_and_clone_versions()
 {
 # check if a specific release version was requested - Format n.n.n[.p[.n]] 
 
-echo "Release $release"
+quiet=1
+
+[ "$quiet" -eq 1 ] && echo "Release $release"
+
 IFS='.' read -ra version_array <<< "$release"
 major="00${version_array[0]}"
 minor="00${version_array[1]}"
 patch="00${version_array[2]}"
 build_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_array[4]}"
-echo "Build Tag $build_tag"
-echo "CopyTag $copyTag"
+[ "$quiet" -eq 1 ] && echo "Build Tag $build_tag"
+[ "$quiet" -eq 1 ] && echo "CopyTag $copyTag"
 IFS='.' read -ra version_array <<< "$copyTag"
 major="00${version_array[0]}"
 minor="00${version_array[1]}"
 patch="00${version_array[2]}"
 clone_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_array[4]}"
-echo "Clone Tag $clone_tag"
+[ "$quiet" -eq 1 ] && echo "Clone Tag $clone_tag"
+
 }
 
 #======================================================================================================================
@@ -1108,8 +1025,17 @@ case "$version" in
     BUILD_RELEASE="DAFFODIL"
     ;;
   *)
-    echo "Possible values: 8 or 9 or 10.0 or 10.1"
-    exit
+
+    # %%% future 10.2, etc until we can fix the script
+    if [ $specificVersion -eq 1 ]; then
+      strip_newer_tags
+    fi
+
+    LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
+    PATCH_LEVEL="GA"
+    BUILD_RELEASE="DAFFODIL"
+#    echo "Possible values: 8 or 9 or 10.0 or 10.1"
+#    exit
     ;;
 esac
 
@@ -1140,6 +1066,7 @@ zero_pad_tag_and_clone_versions
 #  If the file does exist then set $builder to the string in the first line
 #---------------------------------------------------------------------
 read_builder
+
 # Add the Requested Tag, git Cloned Tag and Builder Identifier to BUILD_RELEASE.
 # This will be used in naming the .tgz file output
 BUILD_RELEASE="${BUILD_RELEASE}_T${build_tag}C${clone_tag}$builder"
