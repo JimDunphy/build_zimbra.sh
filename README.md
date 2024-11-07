@@ -38,13 +38,13 @@ or Build a specific release.
 ## Tags
 
 When Zimbra creates releases, they will tag it. Issue any of the following commands to see the tags for your release but this step is no longer necessary as
-the script will generate the correct tags on the fly dynamically as the process has been sped up and only takes about 10 seconds to go through 54+ repositories marking the highest tag for each repository in your version build. 
+the script will generate the correct tags on the fly dynamically as the process has been sped up and only takes about 10 seconds to go through 54+ repositories marking the highest tag for each repository in your version build. While not necessary, you can see the tags it is may use by running any of the following --tag commands for the version you want to build.
 
 ```sh
-% ./build_zimbra.sh --tags10.1
-% ./build_zimbra.sh --tags10.0
-% ./build_zimbra.sh --tags9.0
-% ./build_zimbra.sh --tags8.8.15
+% ./build_zimbra.sh --tags 10.1
+% ./build_zimbra.sh --tags 10.0
+% ./build_zimbra.sh --tags 9.0
+% ./build_zimbra.sh --tags 8.8.15
 % ./build_zimbra.sh --tags    # Create all files
 % ls tags*
 % tags_for_10_0.txt  tags_for_10_1.txt  tags_for_8_8_15.txt  tags_for_9_0.txt
@@ -101,11 +101,7 @@ This script iterates through the GitHub repository and builds the tags for the z
         --version 10.0.8           #build release 10.0.8
         --debug                    #extra output - use as 1st argument
         --clean                    #remove everything but BUILDS
-        --tags                     #create tag filess for all versions possible
-        --tags10.0                 #create tags for version 10.0
-        --tags10.1                 #create tags for version 10.1
-        --tags8.8.15               #create tags for version 8
-        --tags9.0                  #create tags for version 9
+        --tags [10.0]              #create tag files. If version is absent, generate all known tag file versions
         --upgrade                  #echo what needs to be done to upgrade the script
         --builder foss             # an alphanumeric builder name, updates .build.builder file with value
         --builderID [\d\d\d]       # 3 digit value starting at 101-999, updates .build.number file with value
@@ -132,7 +128,7 @@ This script iterates through the GitHub repository and builds the tags for the z
        ./build_zimbra.sh --version 10.1.1  #build version 10.1.1
 
       Note: ********************************************************************************
-        The tags are dynmically generated before each build. If a new release comes out, you only need to use the --version to build the next release.
+        The latest tags are dynmically generated before each build specific to the version specified
         A --clean is issued if a previous build was found. The only time this does not happen is if the --debug flag is issued.
 
       *****************************************************************************************

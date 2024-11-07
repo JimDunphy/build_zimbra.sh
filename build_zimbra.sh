@@ -36,16 +36,17 @@
 #         Allow --clean to be specified with --version
 #       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
 #          - replacement extract_version_pattern(), cleanup of unused code, and prepare for future versions that
-#            should build if the tagging syntax stays sane.
+#            can build future releases if the tagging syntax stays sane.
+#            can build a specific future version of a new tag file as they are introduced.
 #
 # CAVEATS: there are older versions that no longer build because the repositories have been removed from github 
 #      - 9.0.0.p25 is oldest version on that release
 #      - 8.8.15.p33 is oldest version on that release
 #
-#        Tags - will not work without modification to this script when a new version of Zimbra is released.
+#        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
-
-scriptVersion=2.8
+# Default variable values
+scriptVersion=2.9
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -53,13 +54,11 @@ default_number=1011000
 build_number_file=".build.number"
 builder_name_file=".build.builder"
 debug=0
+quiet=0
+dryrun=0
 
-# Static Tag files
-tagFileName10_2="tags_for_10_2.txt"	#future
-tagFileName10_1="tags_for_10_1.txt"
-tagFileName10_0="tags_for_10_0.txt"
-tagFileName9_0="tags_for_9_0.txt"
-tagFileName8_8_15="tags_for_8_8_15.txt"
+# %%% TODO: Define an array of versions to iterate over for --tags (all). Add to when new releases.
+Versions=("8.8.15" "9.0" "10.0" "10.1")
 
 function d_echo() {
     if [ "$debug" -eq 1 ]; then
@@ -237,7 +236,7 @@ function find_latest_tag() {
         chomp(@versions);
         @versions = sort { version_cmp($a, $b) } @versions;
 
-        # %%% Debugging: Print sorted versions
+        # Debugging: Print sorted versions
         if ($debug == 1) {
            print STDERR "Sorted versions: ", join(", ", @versions), "\n";
         }
@@ -520,11 +519,7 @@ function usage() {
         --version 10.0.8           #build release 10.0.8
         --debug                    #extra output - use as 1st argument
         --clean                    #remove everything but BUILDS
-        --tags                     #create tag filess for all versions possible
-        --tags10.0                 #create tags for version 10.0
-        --tags10.1                 #create tags for version 10.1
-        --tags8.8.15               #create tags for version 8
-        --tags9.0                  #create tags for version 9
+        --tags [10.0]              #create tag files. If version is absent, generate all known tag file versions
         --upgrade                  #echo what needs to be done to upgrade the script
         --builder foss             # an alphanumeric builder name, updates .build.builder file with value
         --builderID [\d\d\d]       # 3 digit value starting at 101-999, updates .build.number file with value
@@ -536,7 +531,7 @@ function usage() {
         --help
 
        Example usage:
-       $0 --init               # first time only
+       $0 --init               # first time only to install development environment
        $0 --upgrade            # show how get latest version of this script
        $0 --upgrade | sh       # overwrite current version of script with latest version from github
        $0 --version 10.0       # build latest patch version 10.0 according to tags
@@ -551,7 +546,7 @@ function usage() {
        $0 --version 10.1.1  #build version 10.1.1
 
       Note: ********************************************************************************
-        The tags are dynmically generated before each build. If a new release comes out, you only need to use the --version to build the next release.
+        The latest tags are dynmically generated before each build specific to the version specified
         A --clean is issued if a previous build was found. The only time this does not happen is if the --debug flag is issued.
 
       *****************************************************************************************
@@ -574,26 +569,21 @@ run_with_dots() {
   show_dots &
   local dots_pid=$!
 
-  disown $dots_pid
-
-  # Set up a trap to ensure the dots stop if the script exits early
-  #trap "kill $dots_pid 2>/dev/null" EXIT
-  #trap "kill $dots_pid 2>/dev/null || true" EXIT
-  
+  # Set up a trap to kill the dots process if the command exits early
+  trap 'kill $dots_pid 2>/dev/null; exit $?' EXIT ERR SIGINT SIGTERM
 
   # Execute the command directly in the current shell
   $command
   local status=$?
 
   # Stop the dots and remove the trap
-  #kill $dots_pid 2>/dev/null
-  kill $dots_pid 2>/dev/null 
-  #trap - EXIT
+  kill $dots_pid 2>/dev/null
+  trap - EXIT ERR SIGINT SIGTERM
 
   # Ensure a newline after dots
   echo ""
 
-  # Return the status of the command or function
+  # Return the status of the command
   return $status
 }
 
@@ -617,11 +607,7 @@ function tag_generate () {
   get_inline_tags_cmd="get_inline_tags $specificVersion $version_pattern $version"
 
   # Run the command with dots
-  # %%% instances where child process continues to run spewing dots when parent is interrupted
   run_with_dots "$get_inline_tags_cmd"
-
-  # Run the command without the dots
-  #$get_inline_tags_cmd
 
   # Write the tags variable to the file, overwriting it even if noclobber is set
   echo "$tags" >| "$tagFileName"
@@ -638,21 +624,10 @@ function get_inline_tags ()
   showAll=$1
   version_pattern=$2
   version=$3
-#  tags=$4
-#  copyTag=$5
-
-
-
 
 #
-# Step1:
+# Step1: find latest branch for the version requested or the best fit for latest
 #
-#version_pattern=$(extract_version_pattern $version)
-#showAll=$?
-
-# specific version but chicken and egg problem when we don't have specific version
-#
-# Step2: find latest branch for the version we provide
 desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
 copyTag="$desired_tag"
 
@@ -741,40 +716,43 @@ clone_repo "$desired_tag"
 # Build Static files containing tags for releases to build
 function get_tags ()
 {
-  case "$1" in
-      "10.1")
-           echo "Building tags for version 10.1"
-           tag_generate "10.1" "$tagFileName10_1"
-           ;;
-      "10.0")
-           echo "Building tags for version 10.0"
-           tag_generate "10.0" "$tagFileName10_0"
-           ;;
-      "9.0")
-           echo "Building tags for version 9.0"
-           tag_generate "9.0" "$tagFileName9_0"
-           ;;
-      "8.8.15")
-           echo "Building tags for version 8.8.15"
-           tag_generate "8.8.15" "$tagFileName8_8_15"
-           ;;
-      *)
-           echo "Building Static tag files - should take about 40-45 seconds"
-           echo "Building tags for version 10.1"
-           tag_generate "10.1" "$tagFileName10_1" 
+    local version="$1"
 
-           echo "Building tags for version 10.0"
-           tag_generate "10.0" "$tagFileName10_0"
+    # They didn't specify any version so create all of them
+    if [ "$version" ==  "all" ]; then
+       echo "Building Static tag files - should take about 40-45 seconds"
 
-           echo "Building tags for version 9.0"
-           tag_generate "9.0" "$tagFileName9_0"
+       # Loop through each known version
+       for version in "${Versions[@]}"; do
+          echo "Building tags for version $version"
 
-           echo "Building tags for version 8.8.15"
-           tag_generate "8.8.15" "$tagFileName8_8_15"
+          # Generate the filename based on the version
+          filename="tags_for_${version//./_}.txt"
+    
+          # Call the tag_generate function with version and filename
+          tag_generate "$version" "$filename"
+       done
 
-           if [ $debug -eq 1 ]; then ls -l tags*;fi
-           ;;
-  esac
+       if [ $debug -eq 1 ]; then ls -l tags*;fi
+       exit
+   fi
+
+    if [[ "$version" =~ ^8\.8\.15$ || "$version" =~ ^9\.0$ || "$version" =~ ^1[0-9]+\.[0-9]$ ]]; then
+        echo "Version $version is a recognized version pattern."
+        # Convert version into a filename format, replacing dots with underscores
+        filename="tags_for_${version//./_}.txt"
+
+        # Generate the tags for the version specified
+        echo "Building tags for version $version"
+        d_echo "filename is: $filename"
+        tag_generate $version "$filename"
+
+        if [ $debug -eq 1 ]; then ls -l tags*;fi
+        exit
+    else
+        echo "Version $version is NOT a recognized version pattern."
+    fi
+
 
 }
 
@@ -823,23 +801,21 @@ function zero_pad_tag_and_clone_versions()
 {
 # check if a specific release version was requested - Format n.n.n[.p[.n]] 
 
-quiet=1
-
-[ "$quiet" -eq 1 ] && echo "Release $release"
+[ "$quiet" -eq 0 ] && echo "Release $release"
 
 IFS='.' read -ra version_array <<< "$release"
 major="00${version_array[0]}"
 minor="00${version_array[1]}"
 patch="00${version_array[2]}"
 build_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_array[4]}"
-[ "$quiet" -eq 1 ] && echo "Build Tag $build_tag"
-[ "$quiet" -eq 1 ] && echo "CopyTag $copyTag"
+[ "$quiet" -eq 0 ] && echo "Build Tag $build_tag"
+[ "$quiet" -eq 0 ] && echo "CopyTag $copyTag"
 IFS='.' read -ra version_array <<< "$copyTag"
 major="00${version_array[0]}"
 minor="00${version_array[1]}"
 patch="00${version_array[2]}"
 clone_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_array[4]}"
-[ "$quiet" -eq 1 ] && echo "Clone Tag $clone_tag"
+[ "$quiet" -eq 0 ] && echo "Clone Tag $clone_tag"
 
 }
 
@@ -849,107 +825,108 @@ clone_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_arra
 #
 #======================================================================================================================
 
-dryrun=0
-args=$(getopt -l "init,show-tags,show-cloned-tags,dry-run,tags,tags8,tags8.8.15,tags9,tags9.0,tags10.0,tags10.1,help,clean,upgrade,version:,builder:,builderID:,debug" -o "hV" -- "$@")
-eval set -- "$args"
 
-# Now process each option in a loop
-while [ $# -ge 1 ]; do
-        case "$1" in
-                --)
-                    # No more options left.
-                    shift
-                    break
-                    ;;
-                --init)
-                    init
-                    exit 0
-                    ;;
-                --show-tags)
-                    show_repository_tags
-                    exit 0
-                    ;;
-                --show-cloned-tags)
-                    show_repository_clone_tag
-                    exit 0
-                    ;;
-                --debug)
-                    debug=1
-                    shift
-                    ;;
-                --builderID)
-                    if [ -z "$2" ] || ! is_three_digit_number "$2"; then
-                        echo "Error: --builderID requires a three-digit numeric argument, with the first digit non-zero."
-                        exit 1
-                    fi
-                    builder_id=$2
-                    update_builder_no		# will create if doesn't exist
-                    shift 2 
-                    ;;
-                --upgrade)
-                    echo cp $0 $0.$scriptVersion
-                    echo wget -O $0 'https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh'
-                    exit 0
-                    ;;
-                --dry-run)
-                    dryrun=1
-                    shift
-                    ;;
-                -V)
-                    echo "Version: $scriptVersion"
-                    exit 0
-                    ;;
-                --clean)
-                    #     currently removing zm-build in explict tags,tags9 option. What about --dry-run?
-                    clean=true
-                    echo "Cleaning up ..."
-                    /bin/rm -rf zm-* ja* ju* neko* ant* ical* .staging*
-                    echo "Done!"
-                    shift
-                    ;;
-                --version)
-                    version=$2
-                    shift 2
-                    ;;
-                --builder)
-                    if [ -z "$2" ] || ! is_alphanumeric "$2"; then
-                        echo "Error: --builder requires an alphanumeric argument."
-                        exit 1
-                    fi
-                    builder=$2
-                    update_builder		# will create if doesn't exist
-                    shift 2
-                    ;;
-                --tags)
-                    get_tags "all"
-                    exit 0
-                    ;;
-                --tags10.0)
-                    get_tags "10.0"
-                    exit 0
-                    ;;
-                --tags10.1)
-                    get_tags "10.1"
-                    exit 0
-                    ;;
-                --tags9*)
-                    get_tags "9.0"
-                    exit 0
-                    ;;
-                --tags8*)
-                    get_tags "8.8.15"
-                    exit 0
-                    ;;
-                -h|--help)
-                    usage
-                    exit 0
-                    ;;
-        esac
+# Manual argument parsing
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --)
+            shift
+            break
+            ;;
+        --init)
+            init
+            exit 0
+            ;;
+        --show-tags)
+            show_repository_tags
+            exit 0
+            ;;
+        --show-cloned-tags)
+            show_repository_clone_tag
+            exit 0
+            ;;
+        --debug)
+            debug=1
+            shift
+            ;;
+        --builderID)
+            shift
+            if [ -z "$1"  ] || ! is_three_digit_number "$1"; then
+                echo "Error: --builderID requires a three-digit numeric argument, with the first digit non-zero."
+                exit 1
+            fi
+            builder_id="$1"
+            update_builder_no  # will create if doesn't exist
+            shift
+            ;;
+        --upgrade)
+            echo "cp $0 $0.$scriptVersion"
+            echo "wget -O $0 'https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh'"
+            exit 0
+            ;;
+        --dry-run)
+            dryrun=1
+            shift
+            ;;
+        --quiet)
+            quiet=1
+            shift
+            ;;
+        -V)
+            echo "Version: $scriptVersion"
+            exit 0
+            ;;
+        --clean)
+            clean=true
+            /bin/rm -rf zm-* ja* ju* neko* ant* ical* .staging*
+            echo "Done!"
+            shift
+            ;;
+        --version)
+            shift
+            if [[ -n "$1" ]]; then
+                version="$1"
+                shift
+            else
+                echo "Error: --version requires an argument such as 9.0, 10.0.11, 10.1, etc"
+                exit 1
+            fi
+            ;;
+        --builder)
+            shift
+            if [ -z "$1"  ] || ! is_alphanumeric "$1"; then
+                echo "Error: --builder requires an alphanumeric argument."
+                exit 1
+            fi
+            builder="$1"
+            update_builder  # will create if doesn't exist
+            shift
+            ;;
+        --tags)
+            tags_value="all"  # Default for --tags if no argument is provided
+            shift
+            # Check if the next argument is a valid tag or an option
+            if [[ -n "$1" && ! "$1" =~ ^- ]]; then
+                tags_value="$1"
+                shift
+            fi
+            get_tags $tags_value
+            exit 0
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
 done
 
-# %%% bug... --builder and --builderID will be updated even with dry-run. It happens in the switch statement.
-# Processing continues with the only possible options to get here: --builder, --builderID, --clean, --version
 
+
+# Processing continues with the only possible options to get here: --builder, --builderID, --clean, --version
 # builderID and/or builder and/or clean should exit if they are not building a version.
 if [[ (-n "$builder_id"  || -n "$builder" || -n "$clean") && -z "$version" ]]; then
     d_echo "quietly exiting as we only want to clean or set builder id/builder"
@@ -971,18 +948,11 @@ extract_version_pattern $version
 d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] extra [$extra] specificVersion [$specificVersion]"
 
 # Grab the tags for this version
-# Global
-#%%% bug because version 10.0.10 needs this: version_pattern="10.0"
 get_inline_tags $specificVersion $version_pattern $version #$tags $copyTag
 copyTag=$desired_tag
 #d_echo "tags: [$tags] copyTags: [$copyTag]" 
 
-# %%% thinking about caching during debug mode for faster code development
-#
-#    if [ -f "$tagFileName10_1" ] && [ "$debug" -eq 1 ]; then
-#       d_echo "using the tags from the cached file"
-#       tags="$(cat $tagFileName10_1)"
-
+# %%% This seems suspect for refactoring at some point. Why not have version set correctly???
 if [ $specificVersion -eq 0 ]; then
   d_echo "Requested latest Zimbra $major release and version $version"
 else
@@ -990,6 +960,9 @@ else
   d_echo "Requested Zimbra release $release and version $version"
 fi
 
+
+# %%% TODO:  Legacy. We add to it if newer BUILD_RELEASE names exist. For now... all new version will be DAFFODIL based.
+#            name isn't used anywhere so doen't matter to build.
 case "$version" in
   "8.8"|"8.8.15"|"8.8*")
     if [ $specificVersion -eq 1 ]; then
@@ -1045,8 +1018,8 @@ esac
 TAGS_STRING=$tags
 d_echo "tags: $TAGS_STRING"
 
-# If zm-mailbox folder exists, --clean wasn't run, build will fail, so abort. unless dry-run where we are not building
-if [ -d zm-mailbox ]; then
+# If zm-mailbox folder or one of the earlier folders exists, --clean wasn't run, build will fail, so abort. unless dry-run where we are not building
+if [ -d zm-mailbox ] || [ -d ant-tar-patched ] || [ -d zm-build ]; then
     if [ "$dryrun" -eq 0 ]; then
         # %%% should we not do it here and not exit???
         /bin/rm -rf zm-* ja* ju* neko* ant* ical* .staging*
