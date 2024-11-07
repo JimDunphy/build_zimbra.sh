@@ -36,8 +36,9 @@
 #         Allow --clean to be specified with --version
 #       J Dunphy/V Sherwood 9/3/2024 version 2 with dynamic cache creation
 #          - replacement extract_version_pattern(), cleanup of unused code, and prepare for future versions that
-#            can build future releases if the tagging syntax stays sane.
+#            can build future releases if the tagging version naming syntax stays sane.
 #            can build a specific future version of a new tag file as they are introduced.
+#            add ability to guess at future versions release naming used in creating all the tag files
 #
 # CAVEATS: there are older versions that no longer build because the repositories have been removed from github 
 #      - 9.0.0.p25 is oldest version on that release
@@ -46,7 +47,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.9
+scriptVersion=2.10
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -56,9 +57,6 @@ builder_name_file=".build.builder"
 debug=0
 quiet=0
 dryrun=0
-
-# %%% TODO: Define an array of versions to iterate over for --tags (all). Add to when new releases.
-Versions=("8.8.15" "9.0" "10.0" "10.1")
 
 function d_echo() {
     if [ "$debug" -eq 1 ]; then
@@ -722,8 +720,23 @@ function get_tags ()
     if [ "$version" ==  "all" ]; then
        echo "Building Static tag files - should take about 40-45 seconds"
 
+       # Build list of all possible versions
+       declare -a Versions
+       readarray -t Versions <<< $( git ls-remote --tags "git@github.com:Zimbra/zm-build.git" \
+           | awk '{print $2}' \
+           | sed 's|refs/tags/||' \
+           | grep -vE '^8.7|beta|U20|RRHEL8|\^\{\}' \
+           | grep -E "^[1-9][0-9]*\\.[0-9]+" \
+           | cut -d "." -f 1,2 \
+           | sort -n -u)
+
        # Loop through each known version
        for version in "${Versions[@]}"; do
+
+          # 8.8.15 used odd naming scheme vs 9.0,10.X, versions
+          if [ "${version}" == "8.8" ]; then
+              version="8.8.15"
+          fi
           echo "Building tags for version $version"
 
           # Generate the filename based on the version
