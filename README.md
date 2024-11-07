@@ -1,4 +1,5 @@
 # Script to Compile Zimbra FOSS by Version
+* A wiki article can be found here: https://wiki.zimbra.com/wiki/JDunphy-CompileZimbraScript
 
 A single bash script that will build a zimbra release based on the version (AKA: git tag) in contrast to what is actively being worked on in the development tree which may or may not be in a consistent state at the time of the build. It attempts to match NETWORK versions for FOSS version builds.
 
