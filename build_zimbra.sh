@@ -47,7 +47,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.10
+scriptVersion=2.11
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -708,6 +708,7 @@ clone_repo "$desired_tag"
    fi
 
    d_echo "get_inline_tags(): release [$release] tags [$tags] copyTag [$copyTag]"
+   echo "Latest is [$release]"
 }
 
 
