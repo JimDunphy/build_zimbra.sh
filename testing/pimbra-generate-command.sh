@@ -23,27 +23,30 @@ generate_pimbra_command() {
         # Initialize an array to store valid --git-overrides
         valid_overrides=()
 
-        # Parse each GIT_OVERRIDES line
+        # Add the special maldua-pimbra.url-prefix (if it exists)
+        url_prefix_line=$(echo "$GIT_OVERRIDES" | grep "^maldua-pimbra.url-prefix=")
+        if [[ -n "$url_prefix_line" ]]; then
+            valid_overrides+=("$url_prefix_line")
+        fi
+
+        # Parse each GIT_OVERRIDES line to find repositories and their tags
         while IFS= read -r line; do
-            # Extract the repository and tag
+            # Extract the repository and value
             if [[ "$line" =~ ^([^=]+)=([^ ]+) ]]; then
                 repo="${BASH_REMATCH[1]}"
                 value="${BASH_REMATCH[2]}"
 
-                # Check if this is a tag line (e.g., zm-web-client.tag=9.0.0.p44-maldua)
+                # Check if this is a tag line (e.g., zm-web-client.tag=10.1.5-maldua)
                 if [[ "$repo" == *".tag" ]]; then
                     # Extract the base repository name (e.g., zm-web-client from zm-web-client.tag)
                     base_repo="${repo%.tag}"
 
-                    # Check if the tag matches the pimbra_tag
-                    if [[ "$value" == "${pimbra_tag}-maldua" ]]; then
-                        # Find the corresponding remote for this repository
-                        remote_line=$(echo "$GIT_OVERRIDES" | grep "^${base_repo}.remote=")
-                        if [[ -n "$remote_line" ]]; then
-                            # Add both remote and tag to valid_overrides
-                            valid_overrides+=("$remote_line")
-                            valid_overrides+=("$line")
-                        fi
+                    # Find the corresponding remote for this repository
+                    remote_line=$(echo "$GIT_OVERRIDES" | grep "^${base_repo}.remote=")
+                    if [[ -n "$remote_line" ]]; then
+                        # Add both remote and tag to valid_overrides
+                        valid_overrides+=("$remote_line")
+                        valid_overrides+=("$line")
                     fi
                 fi
             fi
@@ -51,16 +54,10 @@ generate_pimbra_command() {
 
         # If valid_overrides is not empty, construct PIMBRA_COMMAND
         if [ ${#valid_overrides[@]} -gt 0 ]; then
-            # Add the special maldua-pimbra.url-prefix first (if it exists)
-            url_prefix_line=$(echo "$GIT_OVERRIDES" | grep "^maldua-pimbra.url-prefix=")
-            if [[ -n "$url_prefix_line" ]]; then
-                valid_overrides=("$url_prefix_line" "${valid_overrides[@]}")
-            fi
-
-            # Construct PIMBRA_COMMAND
             PIMBRA_COMMAND=$(printf -- "--git-overrides \"%s\" " "${valid_overrides[@]}")
         else
             echo "Error: No valid repositories found for pimbra_tag [$pimbra_tag]." >&2
+            PIMBRA_COMMAND="null"
         fi
     else
         echo "Error: Failed to download config.build_pimbra for tag [$pimbra_tag]." >&2
