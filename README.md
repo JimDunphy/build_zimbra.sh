@@ -111,6 +111,7 @@ This script iterates through the GitHub repository and builds the tags for the z
         --show-tags                #show latest tag for each repositories
         --show-tags | grep 10.0.8  #show latest tag for each repositories with 10.0.8
         --show-cloned-tags         #show tag of each cloned repository used for build
+        --pimbra                   #Replace Zimbra repository with Patched Repository from PIMBRA Repository when present
         --help
 
        Example usage:
@@ -127,6 +128,7 @@ This script iterates through the GitHub repository and builds the tags for the z
        ./build_zimbra.sh --version 10.0.9 --dry-run  #see how to build version 10.0.9
        ./build_zimbra.sh --version 10.0.8  #build version 10.0.8
        ./build_zimbra.sh --version 10.1.1  #build version 10.1.1
+       ./build_zimbra.sh --dry-run --version 9.0 --pimbra   # build version 9.0 with PIMBRA repositories 
 
       Note: ********************************************************************************
         The latest tags are dynmically generated before each build specific to the version specified
