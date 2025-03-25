@@ -47,7 +47,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.11
+scriptVersion=2.12
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -57,6 +57,8 @@ builder_name_file=".build.builder"
 debug=0
 quiet=0
 dryrun=0
+pimbra_repository=0
+PIMBRA_COMMAND=""
 
 function d_echo() {
     if [ "$debug" -eq 1 ]; then
@@ -708,7 +710,7 @@ clone_repo "$desired_tag"
    fi
 
    d_echo "get_inline_tags(): release [$release] tags [$tags] copyTag [$copyTag]"
-   echo "Latest is [$release]"
+   [ "$quiet" -eq 0 ] && echo "Latest is [$release]"
 }
 
 
@@ -833,6 +835,121 @@ clone_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_arra
 
 }
 
+# The pimbra (Patched zimbra tags) are inconsistent.  This function adjusts.
+# example: With version 9.0.0.p44 (Network build), there was no p44 so pimbra was created to address this issue.
+#     They have done something like git clone -b 9.0.0.p43 zm-web-client.git and then patched files in the repository
+#     and then they tagged it as 9.0.0.p44.  We adjust that here for some and subtract for others.
+#
+function adjust_release_tag() {
+    local release="$1"
+    local adjustment="$2"
+
+    # Check if the release contains a '.p' for patch version
+    if [[ "$release" == *".p"* ]]; then
+        # Extract the prefix and patch version
+        local prefix="${release%.p*}"
+        local patch_version="${release##*.p}"
+
+        # Adjust the patch version
+        if [[ "$adjustment" == "+1" ]]; then
+            patch_version=$((patch_version + 1))
+        elif [[ "$adjustment" == "-1" ]]; then
+            patch_version=$((patch_version - 1))
+        elif [[ "$adjustment" == "0" ]]; then
+        # No change, keep the same
+            patch_version="$patch_version"
+        fi
+
+        # Reconstruct the release string
+        echo "${prefix}.p${patch_version}"
+    else
+        # Handle the case where there is no '.p' (e.g., 10.0.13)
+        local major_minor_patch="$release"
+        local patch_version="${major_minor_patch##*.}"
+
+        # Adjust the patch version
+        if [[ "$adjustment" == "+1" ]]; then
+            patch_version=$((patch_version + 1))
+        elif [[ "$adjustment" == "-1" ]]; then
+            patch_version=$((patch_version - 1))
+        elif [[ "$adjustment" == "0" ]]; then
+        # No change, keep the same
+            patch_version="$patch_version"
+        fi
+
+        # Reconstruct the release string
+        echo "${major_minor_patch%.*}.${patch_version}"
+    fi
+}
+
+# See if there are any patched repositories and if there are then created a command strings we append to our build string
+generate_pimbra_command() {
+    local pimbra_tag="$1"
+    local PIMBRA_COMMAND=""
+
+    # Download the config.build_pimbra file
+    wget "https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}/config.build" -O config.build_pimbra > /dev/null 2>&1
+
+    # Check if wget succeeded
+    if [ $? -eq 0 ]; then
+        # Extract all GIT_OVERRIDES from the config.build_pimbra file
+        GIT_OVERRIDES=$(awk '
+            /^# Pimbra patches - BEGIN/,/^# Pimbra patches - END/ {
+                if ($1 == "%GIT_OVERRIDES") {
+                    sub(/^%GIT_OVERRIDES[ \t]*=[ \t]*/, "");
+                    print
+                }
+            }
+        ' config.build_pimbra)
+
+        # Initialize an array to store valid --git-overrides
+        valid_overrides=()
+
+        # Add the special maldua-pimbra.url-prefix (if it exists)
+        url_prefix_line=$(echo "$GIT_OVERRIDES" | grep "^maldua-pimbra.url-prefix=")
+        if [[ -n "$url_prefix_line" ]]; then
+            valid_overrides+=("$url_prefix_line")
+        fi
+
+        # Parse each GIT_OVERRIDES line to find repositories and their tags
+        while IFS= read -r line; do
+            # Extract the repository and value
+            if [[ "$line" =~ ^([^=]+)=([^ ]+) ]]; then
+                repo="${BASH_REMATCH[1]}"
+                value="${BASH_REMATCH[2]}"
+
+                # Check if this is a tag line (e.g., zm-web-client.tag=10.1.5-maldua)
+                if [[ "$repo" == *".tag" ]]; then
+                    # Extract the base repository name (e.g., zm-web-client from zm-web-client.tag)
+                    base_repo="${repo%.tag}"
+
+                    # Find the corresponding remote for this repository
+                    remote_line=$(echo "$GIT_OVERRIDES" | grep "^${base_repo}.remote=")
+                    if [[ -n "$remote_line" ]]; then
+                        # Add both remote and tag to valid_overrides
+                        valid_overrides+=("$remote_line")
+                        valid_overrides+=("$line")
+                    fi
+                fi
+            fi
+        done <<< "$GIT_OVERRIDES"
+
+        # If valid_overrides is not empty, construct PIMBRA_COMMAND
+        if [ ${#valid_overrides[@]} -gt 0 ]; then
+            PIMBRA_COMMAND=$(printf -- "--git-overrides \"%s\" " "${valid_overrides[@]}")
+        else
+            echo "Error: No valid repositories found for pimbra_tag [$pimbra_tag]." >&2
+            PIMBRA_COMMAND="null"
+        fi
+    else
+        echo "Error: Failed to download config.build_pimbra for tag [$pimbra_tag]." >&2
+    fi
+
+    # Return the PIMBRA_COMMAND
+    echo "$PIMBRA_COMMAND"
+}
+
+
 #======================================================================================================================
 #
 #   main program logic starts here
@@ -880,6 +997,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             dryrun=1
+            shift
+            ;;
+        -p|--p|--pimbra)
+            pimbra_repository=1
             shift
             ;;
         --quiet)
@@ -983,24 +1104,30 @@ case "$version" in
       strip_newer_tags
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | awk -F',' '{print $NF}')
+    PIMBRA_TAG=$(echo "$tags" | awk -F',' '{print $1}')
     PATCH_LEVEL="GA"
     BUILD_RELEASE="JOULE"
+    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
     ;;
   "9.0"|"9.0.0"|"9.0*")
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | awk -F',' '{print $NF}')
+    PIMBRA_TAG=$(echo "$tags" | awk -F',' '{print $1}')
     PATCH_LEVEL="GA"
     BUILD_RELEASE="KEPLER"
+    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "+1")
     ;;
   "10.0")
     if [ $specificVersion -eq 1 ]; then
       strip_newer_tags
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
+    PIMBRA_TAG=$LATEST_TAG_VERSION
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
+    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
     ;;
   "10.1")
     if [ $specificVersion -eq 1 ]; then
@@ -1008,8 +1135,15 @@ case "$version" in
     fi
 
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
+    PIMBRA_TAG=$LATEST_TAG_VERSION
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
+    # this is weird... config.build has 10.1.6 that has 10.1.5-maldua tag
+    #                  config.build for 10.1.5 has 10.1.5-maldua tag
+    # we have to read the tag in the config file to get tag to verify
+    # against the repository. 
+    #pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "-1")
+    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
     ;;
   *)
 
@@ -1019,13 +1153,20 @@ case "$version" in
     fi
 
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
+    PIMBRA_TAG=$LATEST_TAG_VERSION
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
+    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
 #    echo "Possible values: 8 or 9 or 10.0 or 10.1"
 #    exit
     ;;
 esac
 
+# see if they want to substitute repositories with patched zimbra (PIMBRA)
+if [ "$pimbra_repository" -eq 1 ]; then 
+    PIMBRA_COMMAND=$(generate_pimbra_command "$pimbra_tag")
+    d_echo "***** PIMBRA_COMMAND [$PIMBRA_COMMAND] pimbra_tag [$pimbra_tag] LATEST_TAG [$LATEST_TAG_VERSION] PIMBRA_TAG [$PIMBRA_TAG] *****"
+fi
 
 # pass these on to the Zimbra build.pl script
 # 10.1.0 | 10.0.0 | 9.0.0 | 8.8.15 are possible values
@@ -1072,9 +1213,12 @@ commands=$(cat << _END_OF_COMMANDS_
 #!/bin/sh
 git clone --depth 1 --branch "$copyTag" "git@github.com:Zimbra/zm-build.git"
 cd zm-build
-ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL
+ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL $PIMBRA_COMMAND
+
 _END_OF_COMMANDS_
 )
+
+#ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL --git-overrides maldua-pimbra.url-prefix="git@github.com:maldua-pimbra"  --git-overrides zm-web-client.remote="maldua-pimbra"  --git-overrides zm-web-client.tag="${release}-maldua"
 
 # Execute or dry-run
 if [ $dryrun -eq 1 ]; then
