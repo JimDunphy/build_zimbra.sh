@@ -47,7 +47,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.12
+scriptVersion=2.13
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -1239,7 +1239,7 @@ build="$(cat "$build_number_file")"
 build_tgz="$(ls -1 BUILDS | grep FOSS-$build)"
 build_ts="$(date +%Y%m%d-%H%M%S)"
 if [[ -z "${build_tgz}" ]]; then
-    build_tgz="Build failed!"
+	build_tgz="Build ${LATEST_TAG_VERSION} failed!"
 fi
 echo "$build_ts  $build  $build_tgz" >> ./builds.log
 # show completed builds
