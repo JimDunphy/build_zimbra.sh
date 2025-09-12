@@ -1,7 +1,7 @@
 # Script to Compile Zimbra FOSS by Version
-* A wiki article can be found here: https://wiki.zimbra.com/wiki/JDunphy-CompileZimbraScript.
+* The original wiki article can be found here: https://web.archive.org/web/20250517034558/https://wiki.zimbra.com/wiki/JDunphy-CompileZimbraScript
 <p>
- **** Zimbra employedd Yogesh Dasi recently deleted the above wiki article. Why? no reason was given. ****
+ **** Synacor employee Yogesh Dasi recently deleted the above wiki article. Why? no reason was given. ****
 <pre>
 The Zimbra :: Tech Center page JDunphy-CompileZimbraScript has been
 deleted on 8 September 2025 by Yogesh.dasi, see
