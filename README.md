@@ -8,6 +8,8 @@ deleted on 8 September 2025 by Yogesh.dasi, see
 http://wiki.zimbra.com/wiki/JDunphy-CompileZimbraScript.    
 </pre>
 
+**Zimbra support of the FOSS community has deteriorated further in 2025. If you build a FOSS release, please be aware that security patches are now witheld for [3+ months and sometime never released](https://wiki.zimbra.com/wiki/Zimbra_Foss_Source_Code_Only_Releases) and only some releases can be built by tags. Use this [link to see what releases are safe to build](https://wiki.zimbra.com/wiki/Zimbra_Foss_Source_Code_Only_Releases)**
+
 A single bash script that will build a zimbra release based on the version (AKA: git tag) in contrast to what is actively being worked on in the development tree which may or may not be in a consistent state at the time of the build. It attempts to match NETWORK versions for FOSS version builds.
 
 The script will install the development environment on any of the supported platforms and allow one to build a zimbra release for Version 8.8.15, 9, and 10. It can be found here: [build_zimbra.sh](https://raw.githubusercontent.com/JimDunphy/build_zimbra.sh/master/build_zimbra.sh). To use this script, you must have previously set up your GitHub account (free) and imported your SSH keys to be able to git clone the repositories and have zm-build/build.pl work. If unsure, see this [link](https://github.com/ianw1974/zimbra-build-scripts) as Ian's script will be installing the dependencies. The script uses this repository from Ian.
