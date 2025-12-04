@@ -39,6 +39,7 @@
 #            can build future releases if the tagging version naming syntax stays sane.
 #            can build a specific future version of a new tag file as they are introduced.
 #            add ability to guess at future versions release naming used in creating all the tag files
+#       J Dunphy 12/04/2025 - added support for new pimbra naming scheme while continuing to support old style too
 #
 # CAVEATS: there are older versions that no longer build because the repositories have been removed from github 
 #      - 9.0.0.p25 is oldest version on that release
@@ -47,7 +48,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.13
+scriptVersion=2.14
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -181,7 +182,7 @@ function generate_repo_list() {
 
 # Function to find the latest tag
 function find_latest_tag() {
-    local repo_url=$1
+    local repo_url="${1:-https://github.com/Zimbra/zm-build}"
     local pattern=$2
     local specific_tag=$3
 
@@ -261,7 +262,7 @@ function find_latest_tag() {
 # clone the zm-build repository with the desired tag
 function clone_repo() {
     local tag=$1
-    local repo_url="git@github.com:Zimbra/zm-build.git"
+    local repo_url="${2:-git@github.com:Zimbra/zm-build.git}"
     local clone_dir="zm-build"
 
     d_echo "clone_repo(): tag [$tag] repo_url [$repo_url] clone_dir [$clone_dir]"
@@ -627,17 +628,28 @@ function get_inline_tags ()
   version_pattern=$2
   version=$3
 
+  # Determine which repository to use based on pimbra settings
+  local zm_build_url="https://github.com/Zimbra/zm-build"
+  local zm_build_clone_url="git@github.com:Zimbra/zm-build.git"
+
+  # If using new pimbra approach and USE_PIMBRA_REPO is set, use pimbra repository
+  if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ]; then
+    zm_build_url="https://github.com/maldua-pimbra/zm-build"
+    zm_build_clone_url="git@github.com:maldua-pimbra/zm-build.git"
+    d_echo "Using pimbra zm-build repository"
+  fi
+
 #
 # Step1: find latest branch for the version requested or the best fit for latest
 #
-desired_tag=$(find_latest_tag "https://github.com/Zimbra/zm-build" "$version_pattern" "$version")
+desired_tag=$(find_latest_tag "$zm_build_url" "$version_pattern" "$version")
 copyTag="$desired_tag"
 
 d_echo "tag [$tag] showAll [$showAll] version_pattern [$version_pattern] version [$version] tags [$tags] copyTag [$desired_tag]"
 
 # Step 3: clone that branch
-d_echo "git clone https://github.com/Zimbra/zm-build.git with branch $desired_tag"
-clone_repo "$desired_tag"
+d_echo "git clone $zm_build_clone_url with branch $desired_tag"
+clone_repo "$desired_tag" "$zm_build_clone_url"
 
 #
 # Step 4:
@@ -842,6 +854,16 @@ clone_tag="${major: -2}${minor: -2}${patch: -2}${version_array[3]}${version_arra
 #     They have done something like git clone -b 9.0.0.p43 zm-web-client.git and then patched files in the repository
 #     and then they tagged it as 9.0.0.p44.  We adjust that here for some and subtract for others.
 #
+# Check if this is an "old pimbra" version that uses the legacy approach
+function is_old_pimbra() {
+    case "$1" in
+        10.1.5|10.1.6|9.0.0.p44)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
 function adjust_release_tag() {
     local release="$1"
     local adjustment="$2"
@@ -949,6 +971,89 @@ generate_pimbra_command() {
 
     # Return the PIMBRA_COMMAND
     echo "$PIMBRA_COMMAND"
+}
+
+# New pimbra approach - queries maldua-pimbra/zm-build directly for tags
+# Returns: PIMBRA_TAG, PIMBRA_OVERRIDES, and USE_PIMBRA_REPO (via exports)
+function get_pimbra_tag_and_overrides() {
+  local basever="$1"
+  local zm_build_repo="https://github.com/maldua-pimbra/zm-build.git"
+  local cfg_repo_raw="https://raw.githubusercontent.com/maldua-pimbra/maldua-pimbra-config"
+
+  # 1) find highest pN tag for given basever
+  # List remote tags; filter for tags like basever.pN; sort version-wise; pick highest
+  local tag
+  tag=$( git ls-remote --tags --refs "$zm_build_repo" \
+        | awk '{print $2}' \
+        | sed 's!refs/tags/!!' \
+        | grep -E "^${basever}\.p[0-9]+$" \
+        | sort -V \
+        | tail -n1 )
+
+  if [[ -z "$tag" ]]; then
+    # No pimbra patch tag found for this base version
+    export PIMBRA_TAG=""
+    export PIMBRA_OVERRIDES=""
+    export USE_PIMBRA_REPO=0
+    d_echo "No pimbra tag found for version $basever"
+    return 1
+  fi
+
+  export PIMBRA_TAG="$tag"
+  export USE_PIMBRA_REPO=1
+  d_echo "Found pimbra tag: $tag"
+
+  # 2) fetch config.build for that tag
+  local cfg_url="${cfg_repo_raw}/${tag}/config.build"
+  local cfgfile
+  cfgfile=$(mktemp)
+  if ! curl -fsSL "$cfg_url" -o "$cfgfile" 2>/dev/null; then
+    d_echo "Warning: Pimbra config.build not found at $cfg_url"
+    export PIMBRA_OVERRIDES=""
+    rm -f "$cfgfile"
+    return 2
+  fi
+
+  # 3) extract %GIT_OVERRIDES = ... tokens from config.build
+  #    This handles multiple overrides per line.
+  #
+  # Split each %GIT_OVERRIDES into separate tokens
+  # Drop everything before the first override
+  # Strip trailing comments
+  # Flatten to one space-separated line
+  # Trim whitespace
+  local overrides
+  overrides=$(
+    sed 's/%GIT_OVERRIDES[[:space:]]*=[[:space:]]*/\n/g' "$cfgfile" \
+      | tail -n +2 \
+      | sed 's/#.*$//' \
+      | tr '\n' ' ' \
+      | xargs
+  )
+
+  rm -f "$cfgfile"
+
+  if [[ -z "$overrides" ]]; then
+    d_echo "Warning: No %GIT_OVERRIDES found in config.build for $tag"
+    export PIMBRA_OVERRIDES=""
+    return 3
+  fi
+
+  # Build final command-line snippet:
+  # overrides now looks like:
+  #   maldua-pimbra.url-prefix=https://github.com/maldua-pimbra \
+  #   zm-web-client.remote=maldua-pimbra \
+  #   zm-web-client.tag=10.1.10.p3-maldua \
+  #   ...
+  local ov_str=""
+  for o in $overrides; do
+    ov_str+="--git-overrides \"$o\" "
+  done
+  export PIMBRA_OVERRIDES="$ov_str"
+
+  d_echo "Pimbra overrides: $PIMBRA_OVERRIDES"
+
+  return 0
 }
 
 
@@ -1080,9 +1185,31 @@ fi
 # Globals
 #     $version_pattern $major $minor $rev $ext $specificVersion
 # populate version patterns required for the build and tags required
-extract_version_pattern $version 
+extract_version_pattern $version
 
 d_echo "extract_version_pattern() version [$version] version_pattern [$version_pattern] major [$major] minior [$minor] rev [$rev] extra [$extra] specificVersion [$specificVersion]"
+
+# Initialize pimbra variables
+USE_PIMBRA_REPO=0
+PIMBRA_TAG=""
+PIMBRA_OVERRIDES=""
+
+# If pimbra option is specified, determine which approach to use
+if [ "$pimbra_repository" -eq 1 ]; then
+    if is_old_pimbra "$version"; then
+        d_echo "Using old pimbra approach for version $version"
+        # Old pimbra will be handled later in the script via generate_pimbra_command
+    else
+        d_echo "Using new pimbra approach for version $version"
+        # Try to get pimbra tag and overrides using new approach
+        if get_pimbra_tag_and_overrides "$version"; then
+            d_echo "New pimbra configuration found: tag=$PIMBRA_TAG"
+        else
+            d_echo "No pimbra configuration found for version $version, proceeding with upstream"
+            pimbra_repository=0  # Disable pimbra since no patch exists
+        fi
+    fi
+fi
 
 # Grab the tags for this version
 get_inline_tags $specificVersion $version_pattern $version #$tags $copyTag
@@ -1165,9 +1292,16 @@ case "$version" in
 esac
 
 # see if they want to substitute repositories with patched zimbra (PIMBRA)
-if [ "$pimbra_repository" -eq 1 ]; then 
-    PIMBRA_COMMAND=$(generate_pimbra_command "$pimbra_tag")
-    d_echo "***** PIMBRA_COMMAND [$PIMBRA_COMMAND] pimbra_tag [$pimbra_tag] LATEST_TAG [$LATEST_TAG_VERSION] PIMBRA_TAG [$PIMBRA_TAG] *****"
+if [ "$pimbra_repository" -eq 1 ]; then
+    if is_old_pimbra "$release"; then
+        # Use old pimbra approach
+        PIMBRA_COMMAND=$(generate_pimbra_command "$pimbra_tag")
+        d_echo "***** OLD PIMBRA_COMMAND [$PIMBRA_COMMAND] pimbra_tag [$pimbra_tag] LATEST_TAG [$LATEST_TAG_VERSION] PIMBRA_TAG [$PIMBRA_TAG] *****"
+    else
+        # Use new pimbra approach - PIMBRA_OVERRIDES already set by get_pimbra_tag_and_overrides
+        PIMBRA_COMMAND="$PIMBRA_OVERRIDES"
+        d_echo "***** NEW PIMBRA_COMMAND [$PIMBRA_COMMAND] PIMBRA_TAG [$PIMBRA_TAG] LATEST_TAG [$LATEST_TAG_VERSION] *****"
+    fi
 fi
 
 # pass these on to the Zimbra build.pl script
@@ -1209,11 +1343,21 @@ BUILD_RELEASE="${BUILD_RELEASE}_T${build_tag}C${clone_tag}$builder"
 #---------------------------------------------------------------------
 read_builder_id
 
+# Determine which repository and tag to use for the final build
+BUILD_ZM_BUILD_URL="git@github.com:Zimbra/zm-build.git"
+BUILD_TAG="$copyTag"
+
+# If using new pimbra approach, use pimbra repository and tag
+if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ]; then
+    BUILD_ZM_BUILD_URL="git@github.com:maldua-pimbra/zm-build.git"
+    BUILD_TAG="$PIMBRA_TAG"
+    d_echo "Using pimbra repository for build: $BUILD_ZM_BUILD_URL with tag $BUILD_TAG"
+fi
 
 # Build the source tree with the specified parameters
 commands=$(cat << _END_OF_COMMANDS_
 #!/bin/sh
-git clone --depth 1 --branch "$copyTag" "git@github.com:Zimbra/zm-build.git"
+git clone --depth 1 --branch "$BUILD_TAG" "$BUILD_ZM_BUILD_URL"
 cd zm-build
 ENV_CACHE_CLEAR_FLAG=true ./build.pl --ant-options -DskipTests=true --git-default-tag="$TAGS_STRING" --build-release-no="$LATEST_TAG_VERSION" --build-type=FOSS --build-release="$BUILD_RELEASE" --build-thirdparty-server=files.zimbra.com --no-interactive --build-release-candidate=$PATCH_LEVEL $PIMBRA_COMMAND
 
