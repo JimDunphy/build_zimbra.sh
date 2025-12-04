@@ -48,7 +48,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.14
+scriptVersion=2.15
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -1246,7 +1246,8 @@ case "$version" in
     PIMBRA_TAG=$(echo "$tags" | awk -F',' '{print $1}')
     PATCH_LEVEL="GA"
     BUILD_RELEASE="KEPLER"
-    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "+1")
+    #pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "+1")   # %%% don't need to add +1 to P43 anymore given P45,P46 exist
+    pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")   
     ;;
   "10.0")
     if [ $specificVersion -eq 1 ]; then
