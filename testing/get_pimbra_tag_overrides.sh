@@ -82,7 +82,7 @@ export PIMBRA_OVERRIDES="$ov_str"
 }
 
 BASEVER="10.1.10"        # e.g. given by user or derived
-BASEVER="10.1.9"        # e.g. given by user or derived
+#BASEVER="10.1.9"        # e.g. given by user or derived
 if get_pimbra_tag_and_overrides "$BASEVER"; then
   echo "Using Pimbra tag: $PIMBRA_TAG"
   echo "-----------"

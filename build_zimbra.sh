@@ -48,7 +48,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.15
+scriptVersion=2.16
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -642,7 +642,13 @@ function get_inline_tags ()
 #
 # Step1: find latest branch for the version requested or the best fit for latest
 #
-desired_tag=$(find_latest_tag "$zm_build_url" "$version_pattern" "$version")
+# If using new pimbra approach, use the PIMBRA_TAG directly
+if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ] && [ -n "$PIMBRA_TAG" ]; then
+  desired_tag="$PIMBRA_TAG"
+  d_echo "Using pimbra tag directly: $desired_tag"
+else
+  desired_tag=$(find_latest_tag "$zm_build_url" "$version_pattern" "$version")
+fi
 copyTag="$desired_tag"
 
 d_echo "tag [$tag] showAll [$showAll] version_pattern [$version_pattern] version [$version] tags [$tags] copyTag [$desired_tag]"
@@ -1254,7 +1260,12 @@ case "$version" in
       strip_newer_tags
     fi
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
-    PIMBRA_TAG=$LATEST_TAG_VERSION
+    # Only set PIMBRA_TAG if not already set by new pimbra approach
+    if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ] && [ -n "$PIMBRA_TAG" ]; then
+      d_echo "Preserving PIMBRA_TAG from new pimbra approach: $PIMBRA_TAG"
+    else
+      PIMBRA_TAG=$LATEST_TAG_VERSION
+    fi
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
     pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
@@ -1265,13 +1276,18 @@ case "$version" in
     fi
 
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
-    PIMBRA_TAG=$LATEST_TAG_VERSION
+    # Only set PIMBRA_TAG if not already set by new pimbra approach
+    if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ] && [ -n "$PIMBRA_TAG" ]; then
+      d_echo "Preserving PIMBRA_TAG from new pimbra approach: $PIMBRA_TAG"
+    else
+      PIMBRA_TAG=$LATEST_TAG_VERSION
+    fi
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
     # this is weird... config.build has 10.1.6 that has 10.1.5-maldua tag
     #                  config.build for 10.1.5 has 10.1.5-maldua tag
     # we have to read the tag in the config file to get tag to verify
-    # against the repository. 
+    # against the repository.
     #pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "-1")
     pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
     ;;
@@ -1283,7 +1299,12 @@ case "$version" in
     fi
 
     LATEST_TAG_VERSION=$(echo "$tags" | cut -d ',' -f 1)
-    PIMBRA_TAG=$LATEST_TAG_VERSION
+    # Only set PIMBRA_TAG if not already set by new pimbra approach
+    if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ] && [ -n "$PIMBRA_TAG" ]; then
+      d_echo "Preserving PIMBRA_TAG from new pimbra approach: $PIMBRA_TAG"
+    else
+      PIMBRA_TAG=$LATEST_TAG_VERSION
+    fi
     PATCH_LEVEL="GA"
     BUILD_RELEASE="DAFFODIL"
     pimbra_tag=$(adjust_release_tag "$PIMBRA_TAG" "0")
