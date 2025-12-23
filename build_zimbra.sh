@@ -745,7 +745,9 @@ function get_tags ()
 
        # Build list of all possible versions
        declare -a Versions
-       readarray -t Versions <<< $( git ls-remote --tags "git@github.com:Zimbra/zm-build.git" \
+       while IFS= read -r line; do
+           Versions+=("$line")
+       done < <( git ls-remote --tags "git@github.com:Zimbra/zm-build.git" \
            | awk '{print $2}' \
            | sed 's|refs/tags/||' \
            | grep -vE '^8.7|beta|U20|RRHEL8|\^\{\}' \
