@@ -68,7 +68,7 @@ generate_pimbra_command() {
 }
 
 # Test cases
-pimbra_tags=("9.0.0.p44" "10.1.5" "10.0.13" "10.1.6" "10.1.4" "8.8.15.p46")
+pimbra_tags=("10.1.16.p1" "9.0.0.p44" "10.1.5" "10.0.13" "10.1.6" "10.1.4" "8.8.15.p46")
 
 # Iterate through each pimbra_tag
 for pimbra_tag in "${pimbra_tags[@]}"; do

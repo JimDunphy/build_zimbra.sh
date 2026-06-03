@@ -48,7 +48,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.16
+scriptVersion=2.17
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
@@ -60,6 +60,7 @@ quiet=0
 dryrun=0
 pimbra_repository=0
 PIMBRA_COMMAND=""
+USE_PIMBRA_ZMBUILD=0
 
 function d_echo() {
     if [ "$debug" -eq 1 ]; then
@@ -621,7 +622,11 @@ function tag_generate () {
 }
 
 
-
+#
+# %%% This is crap... complete crap.  --pimbra --version 10.1.16 didn't work so hack below
+#        should continue to work with 10.1.10 (pimbra has its own zm_build.git) and config.build (10.1.10)
+#        we know of 3 variants for pimbra's from version 9.0.0.p44 to current. All expected to work now.
+#
 function get_inline_tags ()
 {
   showAll=$1
@@ -633,18 +638,18 @@ function get_inline_tags ()
   local zm_build_clone_url="git@github.com:Zimbra/zm-build.git"
 
   # If using new pimbra approach and USE_PIMBRA_REPO is set, use pimbra repository
-  if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ]; then
+  if [ "$pimbra_repository" -eq 1 ] && [ "$USE_PIMBRA_ZMBUILD" -eq 1 ]; then
     zm_build_url="https://github.com/maldua-pimbra/zm-build"
     zm_build_clone_url="git@github.com:maldua-pimbra/zm-build.git"
-    d_echo "Using pimbra zm-build repository"
+    d_echo "Using pimbra zm-build repository - $zm_build_url"
   fi
 
 #
 # Step1: find latest branch for the version requested or the best fit for latest
 #
 # If using new pimbra approach, use the PIMBRA_TAG directly
-if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ] && [ -n "$PIMBRA_TAG" ]; then
-  desired_tag="$PIMBRA_TAG"
+if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ] && [ -n "$PIMBRA_TAG" ] && [ "$USE_PIMBRA_ZMBUILD" -eq 1 ]; then
+  desired_tag="$USE_PIMBRA_ZMBUILD_TAG"
   d_echo "Using pimbra tag directly: $desired_tag"
 else
   desired_tag=$(find_latest_tag "$zm_build_url" "$version_pattern" "$version")
@@ -917,8 +922,13 @@ generate_pimbra_command() {
     local pimbra_tag="$1"
     local PIMBRA_COMMAND=""
 
+echo "wget https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}.p1/config.build"
+
     # Download the config.build_pimbra file
     wget "https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}/config.build" -O config.build_pimbra > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+       wget "https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}.p1/config.build" -O config.build_pimbra > /dev/null 2>&1
+    fi
 
     # Check if wget succeeded
     if [ $? -eq 0 ]; then
@@ -985,25 +995,57 @@ function get_pimbra_tag_and_overrides() {
   local basever="$1"
   local zm_build_repo="https://github.com/maldua-pimbra/zm-build.git"
   local cfg_repo_raw="https://raw.githubusercontent.com/maldua-pimbra/maldua-pimbra-config"
+  local cfg_repo="https://github.com/maldua-pimbra/maldua-pimbra-config"
+  export USE_PIMBRA_ZMBUILD=0
 
   # 1) find highest pN tag for given basever
   # List remote tags; filter for tags like basever.pN; sort version-wise; pick highest
-  local tag
-  tag=$( git ls-remote --tags --refs "$zm_build_repo" \
+  local zm_build_tag
+  zm_build_tag=$( git ls-remote --tags --refs "$zm_build_repo" \
         | awk '{print $2}' \
         | sed 's!refs/tags/!!' \
         | grep -E "^${basever}\.p[0-9]+$" \
         | sort -V \
         | tail -n1 )
 
-  if [[ -z "$tag" ]]; then
-    # No pimbra patch tag found for this base version
-    export PIMBRA_TAG=""
-    export PIMBRA_OVERRIDES=""
-    export USE_PIMBRA_REPO=0
-    d_echo "No pimbra tag found for version $basever"
-    return 1
+
+  # Pimbra sometimes has a zm_build_repo
+  if [[ -z "$zm_build_tag" ]]; then
+     # No pimbra patch tag found for this base version
+     export PIMBRA_TAG=""
+     export PIMBRA_OVERRIDES=""
+     export USE_PIMBRA_REPO=0
+     export USE_PIMBRA_ZMBUILD=0
+     d_echo "zm_build.git has no pimbra tag for version $basever"
+  else 
+     export USE_PIMBRA_ZMBUILD=1
+     export USE_PIMBRA_ZMBUILD_TAG=$zm_build_tag
+     d_echo "*********** zm_build.git pimbra tag is $zm_build_tag ***********"
   fi
+
+  # 2) Next try and see if there are any config.build tags
+  local tag
+  tag=$( git ls-remote --tags --refs "$cfg_repo" \
+         | awk '{print $2}' \
+         | sed 's!refs/tags/!!' \
+         | grep -E "^${basever}\.p[0-9]+$" \
+         | sort -V \
+         | tail -n1 )
+
+
+  # on pimbra config.build and no pimbra zm_build.git
+  if [[ -z "$tag" ]]; then
+      export PIMBRA_TAG=""
+      export PIMBRA_OVERRIDES=""
+      export USE_PIMBRA_REPO=0
+      echo "No pimbra tag found for version $basever"
+      d_echo "No pimbra tag found for version $basever"
+      return 1
+  else
+       d_echo "****** config.build TAG is $tag ***********"
+  fi
+
+  d_echo "****** set PIMBRA_TAG is $tag with USE_PIMBRA_REPO at $USE_PIMBRA_REPO ***********"
 
   export PIMBRA_TAG="$tag"
   export USE_PIMBRA_REPO=1
@@ -1013,8 +1055,9 @@ function get_pimbra_tag_and_overrides() {
   local cfg_url="${cfg_repo_raw}/${tag}/config.build"
   local cfgfile
   cfgfile=$(mktemp)
+  d_echo "**** cfg_url $cfg_url *****"
   if ! curl -fsSL "$cfg_url" -o "$cfgfile" 2>/dev/null; then
-    d_echo "Warning: Pimbra config.build not found at $cfg_url"
+    echo "Warning: Pimbra config.build not found at $cfg_url"
     export PIMBRA_OVERRIDES=""
     rm -f "$cfgfile"
     return 2
@@ -1202,6 +1245,7 @@ PIMBRA_OVERRIDES=""
 
 # If pimbra option is specified, determine which approach to use
 if [ "$pimbra_repository" -eq 1 ]; then
+#JAD9999
     if is_old_pimbra "$version"; then
         d_echo "Using old pimbra approach for version $version"
         # Old pimbra will be handled later in the script via generate_pimbra_command
@@ -1370,9 +1414,10 @@ BUILD_ZM_BUILD_URL="git@github.com:Zimbra/zm-build.git"
 BUILD_TAG="$copyTag"
 
 # If using new pimbra approach, use pimbra repository and tag
-if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_REPO:-0}" -eq 1 ]; then
+if [ "$pimbra_repository" -eq 1 ] && [ "${USE_PIMBRA_ZMBUILD:-0}" -eq 1 ]; then
     BUILD_ZM_BUILD_URL="git@github.com:maldua-pimbra/zm-build.git"
-    BUILD_TAG="$PIMBRA_TAG"
+    #BUILD_TAG="$PIMBRA_TAG"
+    BUILD_TAG="$USE_PIMBRA_ZMBUILD_TAG"
     d_echo "Using pimbra repository for build: $BUILD_ZM_BUILD_URL with tag $BUILD_TAG"
 fi
 

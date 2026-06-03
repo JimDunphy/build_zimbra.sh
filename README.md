@@ -44,6 +44,7 @@ or Build a specific release.
 ```sh
 % ./build_zimbra.sh --version 10.0.7
 ```
+Thats it! For additional documentation and options. Keep reading. 
 
 ## Tags
 
