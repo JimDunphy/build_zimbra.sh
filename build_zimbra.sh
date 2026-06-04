@@ -48,7 +48,7 @@
 #        Tags - 'all option' will not work without modification to this script when a new version of Zimbra is released.
 #
 # Default variable values
-scriptVersion=2.17
+scriptVersion=2.18
 copyTag="0.0"
 tags="0.0"
 default_builder="FOSS"
