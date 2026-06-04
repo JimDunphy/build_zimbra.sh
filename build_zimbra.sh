@@ -922,13 +922,8 @@ generate_pimbra_command() {
     local pimbra_tag="$1"
     local PIMBRA_COMMAND=""
 
-echo "wget https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}.p1/config.build"
-
     # Download the config.build_pimbra file
     wget "https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}/config.build" -O config.build_pimbra > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
-       wget "https://github.com/maldua-pimbra/maldua-pimbra-config/raw/refs/tags/${pimbra_tag}.p1/config.build" -O config.build_pimbra > /dev/null 2>&1
-    fi
 
     # Check if wget succeeded
     if [ $? -eq 0 ]; then
@@ -1245,7 +1240,6 @@ PIMBRA_OVERRIDES=""
 
 # If pimbra option is specified, determine which approach to use
 if [ "$pimbra_repository" -eq 1 ]; then
-#JAD9999
     if is_old_pimbra "$version"; then
         d_echo "Using old pimbra approach for version $version"
         # Old pimbra will be handled later in the script via generate_pimbra_command
